@@ -4,9 +4,33 @@ from mmux_utils.funs_git import clone_repo, import_function_from_repo, check_rep
 import time
 from pathlib import Path
 
+temp_dir = create_run_dir(Path("."), "setup")
+
 
 def reset_clone_status():
     st.session_state.cloned = False
+
+
+if "cloned" not in st.session_state:
+    reset_clone_status()
+
+
+def clone(repo_url: str, temp_dir: Path):
+    try:
+        assert check_repo_exists(repo_url)
+
+        with st.spinner("Cloning..."):
+            status, message = clone_repo(repo_url, target_dir=temp_dir)
+            time.sleep(2)
+
+        if status == True:
+            st.success("✔️ Cloning succeeded!")
+            st.session_state.cloned = True  # Update session state
+        else:
+            st.error("❌ Cloning failed.")
+            st.error(message)
+    except:
+        st.warning("Please enter a valid GitHub repository URL!")
 
 
 def main():
@@ -15,8 +39,6 @@ def main():
 
     st.title("MetaModeling UX")
     st.header("Pipeline Setup")
-    temp_dir = create_run_dir(Path("."), "setup")
-    reset_clone_status()
 
     repo_url = st.text_input(
         "Model: ",
@@ -24,26 +46,18 @@ def main():
         on_change=lambda: reset_clone_status(),
     )
 
+    st.button(
+        "Clone",
+        on_click=clone,
+        args=(repo_url, temp_dir),
+        disabled=st.session_state.cloned,
+    )
+
+    print("After button?", st.session_state.cloned)
+
     ## TODO try Copilot changes to make Clone button disappear once clicked; otherwise check what I saw in Overflow
     ## also probably much better program flow, with proper callbacks and so on (not so much, nested ifs)
     ## in any case, commit this version and be able to inspect diff solutions (in diff branches / commits?)
-    if repo_url:
-        valid_repo = check_repo_exists(repo_url)
-        if valid_repo:
-            if not st.session_state.cloned:
-                if st.button("Clone"):
-                    with st.spinner("Cloning..."):
-                        status, message = clone_repo(repo_url, target_dir=temp_dir)
-                        time.sleep(2)
-
-                    if status == True:
-                        st.success("✔️ Cloning succeeded!")
-                        st.session_state.cloned = True  # Update session state
-                    else:
-                        st.error("❌ Cloning failed.")
-                        st.error(message)
-        else:
-            st.warning("Please enter a valid GitHub repository URL!")
 
     ## TODO be able to extract input & output variables;
     # and generate the textboxes to input values for them

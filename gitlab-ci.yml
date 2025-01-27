@@ -1,0 +1,44 @@
+variables:
+  SIMPHONY_LATEST_RELEASE: '//apollo/Sim4Life/Installers/simphony_Simphony/release/sim4life/8.0/16520'
+  BUILD_DIR: '$CI_PROJECT_DIR\build\_bin\Release'
+
+stages:
+  - build
+  - test
+
+install:
+  stage: build
+  script:
+    - py -3 $env:GAIA_PYTHON\extract_archive.py -sp $SIMPHONY_LATEST_RELEASE -sf "bin.7z" -t $BUILD_DIR
+    - '& "$BUILD_DIR\Python\python.exe" -m pip install .'
+  only:
+    - merge_requests
+  tags:
+    - WINDOWS
+    - VS19
+
+test:
+  stage: test
+  script:
+    - mkdir junit_results
+    - py -3 $env:GAIA_PYTHON\extract_archive.py
+      -sp $SIMPHONY_LATEST_RELEASE
+      -sf "bin.7z"
+      -t $CI_PROJECT_DIR\build\_bin\Release
+    - '& "$BUILD_DIR\Python\python.exe" -m pip install ".[dev]"'
+    - '& "$BUILD_DIR\Python\python.exe" -m mypy src tests --junit-xml junit_results\mypy.xml'
+    - '& "$BUILD_DIR\Python\python.exe" -m pytest -v --junitxml=junit_results\pytest.xml --cov=src --cov-report=xml --cov-report=html:junit_results\pytest_coverage --profile --pstats-dir=junit_results\pytest_profiling'
+  after_script:
+    - kill_gaia_processes.ps1
+  artifacts:
+    name: ${CI_JOB_NAME}_artifacts
+    paths:
+      - $CI_PROJECT_DIR\junit_results\*.xml
+      - $CI_PROJECT_DIR\dist\*
+    reports:
+      junit: $CI_PROJECT_DIR\junit_results\*.xml
+  only:
+    - merge_requests
+  tags:
+    - WINDOWS
+    - VS19

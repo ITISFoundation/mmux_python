@@ -1,0 +1,12 @@
+{
+    "python.testing.pytestArgs": [
+        "tests",
+        "--profile",
+        "--pstats-dir=tests/pytest_profiling",
+        "--cov=src",
+        "--cov-report=html:tests/pytest_coverage"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.analysis.typeCheckingMode": "basic"
+}

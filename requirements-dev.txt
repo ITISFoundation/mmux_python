@@ -1,0 +1,6 @@
+black
+build
+mypy
+pre-commit
+pytest
+twine

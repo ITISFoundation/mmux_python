@@ -1,2 +1,6 @@
 [build-system]
 requires = ["setuptools>=42", "wheel"]   # PEP 508 specifications.
+
+
+[tool.poetry.scripts]
+pycln = "pycln.cli:app"

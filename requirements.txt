@@ -9,9 +9,3 @@ matplotlib
 seaborn
 itis-dakota
 streamlit
-## TEMPORALLY, while developing. Use git install below for deployment.
--e file:///home/ordonez/mmux/mmux_utils
-# mmux-utils @ git+https://github.com/ITISFoundation/mmux-utils
-#@e19130634f132476b261a431426de7ac644b73c7
-# mmux-workflows @ git+https://github.com/ITISFoundation/mmux-workflows  ## still didnt work on make it installable. Should I ??
-## these workflows (or functions in utils) should be the core of the "backend"

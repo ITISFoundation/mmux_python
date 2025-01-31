@@ -3,4 +3,6 @@ build
 mypy
 pre-commit
 pytest
+pytest-cov
+pytest-profiling
 twine

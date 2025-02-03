@@ -32,5 +32,6 @@
             id_interface = 'INTERFACE'
 
             python
+                batch
                 analysis_drivers
                     'model'

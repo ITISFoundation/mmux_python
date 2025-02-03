@@ -7,26 +7,27 @@ from utils.funs_git import (
     get_mmux_top_directory,
 )
 from dotenv import dotenv_values
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional
 
 
-def clone_optistim_repo() -> Tuple[Path, str]:
+def clone_optistim_repo(output_dir: Optional[Path] = None) -> Tuple[Path, str]:
     workspace_dir = get_mmux_top_directory()
     config = dotenv_values(workspace_dir / "runner_optistim.env")
-    temp_dir = create_run_dir(workspace_dir, "evaluation")
+    if output_dir is None:
+        output_dir = create_run_dir(workspace_dir, "evaluation")
     repo_url = config["RUNNER_CODE_REPO"]
     assert repo_url is not None, f"Repository {repo_url} must be provided"
     assert check_repo_exists(repo_url)
     clone_repo(
         repo_url=repo_url,
         commit_hash=config["RUNNER_CODE_HASH"],
-        target_dir=temp_dir,
+        target_dir=output_dir,
     )
-    return temp_dir, repo_url
+    return output_dir, repo_url
 
 
-def get_model_from_optistim_repo() -> Callable:
-    tmp_dir, repo_url = clone_optistim_repo()
+def get_model_from_optistim_repo(output_dir: Optional[Path] = None) -> Callable:
+    tmp_dir, repo_url = clone_optistim_repo(output_dir)
     fun: Callable = get_attr_from_repo(
         tmp_dir, module_name="evaluation.py", function_name="model"
     )

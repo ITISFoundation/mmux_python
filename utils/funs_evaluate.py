@@ -1,54 +1,6 @@
-### Allows to evaluate in different modes - batch, single set, ...
-### also in OSPARC or local deployment
-from typing import Optional
 from pathlib import Path
-import dakota.environment as dakenv
 import datetime
 import os
-
-
-## FROM DAKOTA-SERVICE
-def model_callback(self, dak_inputs: dict):
-    with open("logs.txt", "w") as logs:
-        print("Inside model_callback", file=logs)
-    param_sets = [
-        {
-            **{
-                label: value
-                for label, value in zip(dak_input["cv_labels"], dak_input["cv"])
-            },
-            **{
-                label: value
-                for label, value in zip(dak_input["div_labels"], dak_input["div"])
-            },
-        }
-        for dak_input in dak_inputs
-    ]
-    all_response_labels = [dak_input["function_labels"] for dak_input in dak_inputs]
-    obj_sets = self.map_object.evaluate(param_sets)
-    dak_outputs = [
-        {"fns": [obj_set[response_label] for response_label in response_labels]}
-        for obj_set, response_labels in zip(obj_sets, all_response_labels)
-    ]
-    return dak_outputs
-
-
-# ### Otherwise could create a class that I can instantiate and give a "model" at initialization time,
-# # which is given to "run dakota" as input parameter
-# def batch_evaluator(model: Callable, batch_input: List[dict]):
-#     return map(model, batch_input)  # FIXME not sure this will work
-
-
-# def batch_evaluator_local(model: Callable, batch_input: List[dict]):
-#     return [
-#         {"fns": [v for v in response.values()]} for response in map(model, batch_input)
-#     ]
-
-
-# def single_evaluator(model: Callable, input: dict):
-#     print("Inside single evaluator")
-#     print(input)
-#     return model(input)
 
 
 def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
@@ -60,29 +12,6 @@ def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
     os.makedirs(temp_dir, exist_ok=True)
     print("temp_dir: ", temp_dir)
     return temp_dir
-
-
-def run_dakota(
-    dakota_conf: Optional[str] = None,
-    dakota_conf_path: Optional[Path] = None,
-    batch_mode: bool = True,
-):
-    print("Starting dakota")
-    if dakota_conf is None:
-        assert dakota_conf_path is not None
-        dakota_conf = dakota_conf_path.read_text()
-
-    # callbacks = (
-    #     {"model": batch_evaluator}
-    #     if batch_mode
-    #     else {"model": single_evaluator}  # not sure this will work
-    # )
-    study = dakenv.study(  # type: ignore
-        callbacks={"model": model_callback},
-        input_string=dakota_conf,
-    )
-    ## FIXME failing here; check DakotaService and PR code to see how it is managed there
-    study.execute()
 
     """
     Help on class study in module dakota.environment.environment:

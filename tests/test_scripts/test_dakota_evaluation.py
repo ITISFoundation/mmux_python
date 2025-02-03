@@ -1,10 +1,8 @@
 import pytest
 from pathlib import Path
-from tests.test_utils.test_funs_git import (
-    get_model_from_optistim_repo,
-)
+from tests.test_utils.test_funs_git import get_model_from_optistim_repo, create_run_dir
 from utils.funs_create_dakota_conf import create_function_sampling
-from utils.funs_evaluate import run_dakota
+from utils.dakota_object import DakotaObject, Map
 
 
 ## TODO also port here the evaluation through Dakota of whatever samples in a file
@@ -42,9 +40,11 @@ def test_create_sampling_dakota_file():
             ref_file.write(dakota_conf)
 
 
-# @pytest.mark.skip(reason="Dakota interface Not implemented yet")
-@pytest.mark.parametrize("batch_mode", [True, False])
-def test_run_sampling_with_dakota(batch_mode):
-    model = get_model_from_optistim_repo()
-    dakota_conf = create_function_sampling(model)
-    run_dakota(dakota_conf, batch_mode=batch_mode)
+@pytest.mark.parametrize("n_runners", [1, 10])
+def test_run_sampling_with_dakota(n_runners):
+    run_dir = create_run_dir(Path.cwd(), "sampling")
+    model = get_model_from_optistim_repo(run_dir)
+    map = Map(model, n_runners=n_runners)
+    dakobj = DakotaObject(map)
+    dakota_conf = create_function_sampling(fun=model, num_samples=2, batch_mode=True)
+    dakobj.run(dakota_conf, output_dir=run_dir)

@@ -306,12 +306,15 @@ def create_function_sampling(
     fun: Callable,
     num_samples: int = 100,
     seed: int = 1234,
-    batch_mode: bool = False,
+    batch_mode: bool = True,  ## always active here
     lower_bounds: Optional[list] = None,
     upper_bounds: Optional[list] = None,
     dakota_conf_file: Optional[Path] = None,  # "dakota_sampling.in",
     dakota_results_file: Optional[Path] = None,  # "results_sampling.dat",
 ) -> str:
+    """Creates an LHS sampling for the given function. The function object is necessary to
+    retrieve its input and output labels.
+    """
     if dakota_results_file and dakota_results_file.is_file():
         print(
             f"{dakota_results_file} already exists. Interrupting execution and re-using..."

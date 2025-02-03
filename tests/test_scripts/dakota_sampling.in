@@ -1,0 +1,36 @@
+
+    environment
+        tabular_data
+            tabular_data_file = 'results.dat'
+        top_method_pointer = 'SAMPLING'
+
+        method
+            id_method = 'SAMPLING'
+            sample_type
+                lhs
+            sampling
+                samples = 100
+                seed = 1234
+
+
+
+        variables
+            continuous_design = 9
+            id_variables = 'VARIABLES'
+                descriptors 'p1' 'p2' 'p3' 'p4' 'p5' 'p6' 'p7' 'p8' 'p9'
+                lower_bounds      -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0 -1.0
+                upper_bounds      1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+
+        responses
+            id_responses = 'RESPONSES'
+            descriptors 'activation' 'energy' 'maxamp'
+            objective_functions = 3
+            no_gradients
+            no_hessians
+
+        interface,
+            id_interface = 'INTERFACE'
+
+            python
+                analysis_drivers
+                    'model'

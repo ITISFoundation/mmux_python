@@ -3,6 +3,7 @@ runs
 runner_optistim.env
 **.env
 GAF_kernels/
+TODO**
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -52,7 +52,7 @@ class Map:
 
 
 class DakotaObject:
-    def __init__(self, map_object: Map) -> None:
+    def __init__(self, map_object: Map | None) -> None:
         self.map_object = map_object
         logger.info("DakotaObject created")
 
@@ -77,6 +77,9 @@ class DakotaObject:
             all_response_labels = [
                 dak_input["function_labels"] for dak_input in dak_inputs
             ]
+            assert (
+                self.map_object is not None
+            ), "model_callback should not be executed if map_object is None"
             obj_sets = self.map_object.evaluate(param_sets)
             dak_outputs = [
                 {"fns": [obj_set[response_label] for response_label in response_labels]}
@@ -88,11 +91,23 @@ class DakotaObject:
             raise e
 
     def run(self, dakota_conf: str, output_dir: Path):
+        if self.map_object:
+            # callbacks = {"model": self.model_callback}
+            callback = self.model_callback
+        else:
+            logger.info(
+                "No Map object was provided to DakotaObject. "
+                "Therefore, it is assumed this is a Dakota-internal calculation"
+                "and no callback is necessary."
+            )
+            # callbacks = {}
+            callback = None
         print("Starting dakota")
         dakota_restart_path = output_dir / "dakota.rst"
         with working_directory(output_dir):
             study = dakenv.study(  # type: ignore
-                callbacks={"model": self.model_callback},
+                # callbacks=callbacks,
+                callback=callback,
                 input_string=dakota_conf,
                 read_restart=(
                     str(dakota_restart_path) if dakota_restart_path.exists() else ""

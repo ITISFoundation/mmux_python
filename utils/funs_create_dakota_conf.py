@@ -107,7 +107,7 @@ def add_interface_s4l(n_jobs: int = 2, id_model="S4L_MODEL") -> str:
         """
 
 
-def add_responses(descriptors=["-AFpeak"]) -> str:
+def add_responses(descriptors: List[str]) -> str:
     descriptors = descriptors if isinstance(descriptors, list) else [descriptors]
     return f"""
 
@@ -125,7 +125,6 @@ def add_surrogate_model(
     surrogate_type: str = "gaussian_process surfpack",
     training_samples_file: Optional[str] = None,
     id_sampling_method: Optional[str] = None,
-    id_truth_model: Optional[str] = None,
     cross_validation_folds: Optional[int] = None,
 ) -> str:
     conf = f"""
@@ -156,6 +155,10 @@ def add_surrogate_model(
                     '{training_samples_file}'
                     custom_annotated header use_variable_labels {'eval_id' if 'processed' not in training_samples_file else ''}"""
 
+    conf += f"""
+                export_approx_points_file "predictions.dat"
+                {'export_approx_variance_file "variances.dat"' if "gaussian_process" in surrogate_type else ""}
+        """
     ### DONT KNOW HOW TO USE THIS YET
     # if id_truth_model is None:
     #     print(
@@ -169,9 +172,6 @@ def add_surrogate_model(
     #             {f"truth_model_pointer =  '{id_truth_model}' "
     #             if id_truth_model is not None else
     #             f"dace_method_pointer = '{id_sampling_method}'"}
-
-    #             export_approx_points_file "predictions.dat"
-    #             {'export_approx_variance_file "variances.dat"' if "gaussian_process" in surrogate_type else ""}
 
     return conf
 
@@ -280,9 +280,10 @@ def add_evaluator_model(
 
 
 def add_python_interface(
-    evaluation_function: str,
-    id_interface="INTERFACE",
-    batch_mode: bool = False,
+    evaluation_function: str = "model_callback",
+    id_interface: str = "INTERFACE",
+    batch_mode: bool = True,
+    ## for ITIS-Dakota, all interfaces are built assuming batch-mode = True
 ):
     return f"""
         interface,
@@ -347,6 +348,27 @@ def create_function_sampling(
         descriptors=list(outputs.keys()),
     )
     dakota_conf += add_python_interface("model", batch_mode=batch_mode)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf
+
+
+def create_sumo_evaluation(
+    build_file: Path,
+    # surrogate_type: Optional[str] = None, ## for now, always GP
+    # TODO be able to load sumo (instead of building every time)
+    samples_file: Path,
+    input_variables: List[str],
+    output_responses: List[str],
+    dakota_conf_file: Optional[str | Path] = None,
+):
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_evaluation_method(str(samples_file.resolve()))
+    dakota_conf += add_continuous_variables(variables=input_variables)
+    dakota_conf += add_responses(output_responses)
+    # dakota_conf += add_python_interface() ## no need to run anything outside dakota!
 
     if dakota_conf_file:
         write_to_file(dakota_conf, dakota_conf_file)

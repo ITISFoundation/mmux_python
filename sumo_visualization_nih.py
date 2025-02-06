@@ -1,21 +1,15 @@
 ## TODO make a test script (rather than standalone)
 ## TODO make much more modular (slowly)
 from pathlib import Path
-from typing import List
 import pandas as pd
 import shutil
-from utils.dakota_object import DakotaObject
 from utils.funs_data_processing import (
     get_variable_names,
     process_input_file,
 )
 from utils.funs_evaluate import create_run_dir
-from utils.funs_create_dakota_conf import create_sumo_evaluation
-from utils.funs_plotting import plot_response_curves
-from utils.funs_data_processing import (
-    create_samples_along_axes,
-    extract_predictions_along_axes,
-)
+from utils.funs_evaluate import evaluate_sumo_along_axes
+
 
 ################## CONFIG ########################################
 ##################################################################
@@ -58,45 +52,20 @@ assert len(var_names) == N_INPUTS + N_OUTPUTS, (
     f"expected number of input variables {N_INPUTS} and output responses {N_OUTPUTS}"
 )
 PROCESSED_TRAINING_FILE = process_input_file(
-    TRAINING_FILE, make_log=var_names[:N_INPUTS], custom_operations=normalize_thermals
+    TRAINING_FILE, make_log=True, custom_operations=normalize_thermals
 )
 var_names = get_variable_names(PROCESSED_TRAINING_FILE)
 input_vars = var_names[:N_INPUTS]
 output_vars = var_names[-N_OUTPUTS:]
-
-# create sweeps data
-NSAMPLESPERVAR = 21
-data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
-PROCESSED_SWEEP_INPUT_FILE = create_samples_along_axes(
-    run_dir, data, input_vars, NSAMPLESPERVAR
+### FIXME not able to give only some output vars; would need to
+# remove them from the (PROCESSED_)TRAINING_FILE as well
+PROCESSED_TRAINING_FILE = process_input_file(
+    PROCESSED_TRAINING_FILE, columns_to_remove=output_vars[:15]
 )
 
-# create dakota file
-dakota_conf = create_sumo_evaluation(
-    build_file=PROCESSED_TRAINING_FILE,
-    ### TODO be able to save & load surrogate models (start w GP) rather than create them every time
-    samples_file=PROCESSED_SWEEP_INPUT_FILE,
-    input_variables=input_vars,
-    output_responses=output_vars,
-)
-
-# run dakota
-dakobj = DakotaObject(
-    map_object=None
-)  # no need to evaluate any function (only the SuMo, internal to Dakota)
-dakobj.run(dakota_conf, run_dir)
-
-
-# extract output data
-def extract_and_plot_prediction_curves(
-    run_dir, RESPONSE: str, input_vars: List[str], NSAMPLESPERVAR: int
-):
-    results = extract_predictions_along_axes(
-        run_dir, RESPONSE, input_vars, NSAMPLESPERVAR
-    )
-    plot_response_curves(results, RESPONSE, input_vars, savedir=run_dir)
-
-
-extract_and_plot_prediction_curves(run_dir, output_vars[16], input_vars, NSAMPLESPERVAR)
+evaluate_sumo_along_axes(run_dir, PROCESSED_TRAINING_FILE, input_vars, output_vars[15:])
+## TODO make proper plotting (in log-log scale / labels)
+# eventually code all the variaations (e.g. input log or linear; Plot desired in log or linear)
+## TODO fix the label titles
 
 print("DONE")

@@ -246,6 +246,8 @@ def create_samples_along_axes(
     sweep_file_name: str = "sweep_input",
 ) -> Path:
     # create sweeps data
+    if not sweep_file_name.endswith(".csv"):
+        sweep_file_name += ".csv"
     SWEEP_INPUT_FILE = run_dir / sweep_file_name
 
     assert np.all(

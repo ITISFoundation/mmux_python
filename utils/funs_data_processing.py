@@ -7,49 +7,6 @@ from pathlib import Path
 import copy
 
 
-def label_conversion(old_label: str):
-    assert isinstance(
-        old_label, str
-    ), f"old_label must be a string object! Instead, {type(old_label)} found."
-
-    ## pattern exceptions
-    if "EM_Shunting_Shunted_Current" in old_label:
-        return "Shunted Current Outside the Nerve (%)"
-
-    # tissues
-    if "Saline" in old_label:
-        tissue = "Muscle "
-    elif "Nerve" in old_label:
-        tissue = "Nerve "
-    elif "Fascicle" in old_label:
-        tissue = "Fascicle "
-    elif "Total" or "Overall" in old_label:
-        tissue = "Total "
-    else:
-        raise ValueError("Tissue not matched for " + old_label)
-
-    #
-
-    if "Shunting" in old_label and "Current" in old_label:
-        return tissue + "Shunted Current"
-    elif "PeakE" in old_label:
-        return tissue + "Peak E-field"
-    elif "Iso99E" in old_label:
-        return tissue + "99% Iso-Percentile E-field"
-    elif "Iso98E" in old_label:
-        return tissue + "98% Iso-Percentile E-field"
-    elif "icnirp_peaks" in old_label:
-        return tissue + "ICNIRP Peak"
-    elif "Thermal_Peak" in old_label:
-        return tissue + "Thermal Peak"
-    elif "EM_Neuro" in old_label:
-        if "Threshold" in old_label:
-            return " ".join(old_label.split("_")[-3:])
-        elif "Quantile" in old_label:
-            q = old_label.split("_")[-1].split("percent")[0]
-            return f"Neuro {q}% Quantile"
-
-
 def _parse_data(file: str | Path) -> List[List[str]]:
     data = []
     with open(file) as f:

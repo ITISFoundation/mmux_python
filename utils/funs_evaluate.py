@@ -1,7 +1,7 @@
 from pathlib import Path
 import datetime
 import os
-from typing import List
+from typing import List, Literal, Optional, Callable
 from utils.dakota_object import DakotaObject
 from utils.funs_create_dakota_conf import create_sumo_evaluation
 from utils.funs_plotting import plot_response_curves
@@ -27,10 +27,20 @@ def evaluate_sumo_along_axes(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
     input_vars: List[str],
+    ## TODO be able to load / query SuMo directly; or simply be able to do on any function (although prob better as separate function, that)
     response_vars: List[str],
     NSAMPLESPERVAR: int = 21,
-    ## TODO be able to load / query SuMo directly; or simply be able to do on any function (although prob better as separate function, that)
+    xscale: Literal["linear", "log"] = "linear",
+    yscale: Literal["linear", "log"] = "linear",
+    label_converter: Optional[Callable] = None,
 ):
+    """Given a training data to create a SuMo, generate it, and plot the profile along the central axes
+    (e.g. all variables but the sweeped one will be set to its central value).
+    No callback is necessary (everything internal to Dakota).
+
+    Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
+    Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
+    """
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_SWEEP_INPUT_FILE = create_samples_along_axes(
@@ -56,7 +66,15 @@ def evaluate_sumo_along_axes(
         results = extract_predictions_along_axes(
             run_dir, RESPONSE, input_vars, NSAMPLESPERVAR
         )
-        plot_response_curves(results, RESPONSE, input_vars, savedir=run_dir)
+        plot_response_curves(
+            results,
+            RESPONSE,
+            input_vars,
+            savedir=run_dir,
+            plotting_xscale=xscale,
+            plotting_yscale=yscale,
+            label_converter=label_converter,
+        )
 
     """
     Help on class study in module dakota.environment.environment:

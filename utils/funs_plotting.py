@@ -3,6 +3,9 @@ from typing import Dict, List, Optional, Callable, Literal
 import numpy as np
 from pathlib import Path
 
+# sudo apt install texlive texlive-latex-extra texlive-fonts-recommended dvipng
+# import matplotlib as mpl
+# mpl.rcParams.update(mpl.rcParamsDefault)
 plt.rcParams["text.usetex"] = True
 
 

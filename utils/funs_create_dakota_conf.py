@@ -338,7 +338,7 @@ def create_function_sampling(
     dakota_conf += add_continuous_variables(
         variables=list(inputs.keys()),
         lower_bounds=(
-            lower_bounds if lower_bounds else [-1.0 for _ in range(len(inputs))]
+            lower_bounds if lower_bounds else [0.0 for _ in range(len(inputs))]
         ),
         upper_bounds=(
             upper_bounds if upper_bounds else [1.0 for _ in range(len(inputs))]

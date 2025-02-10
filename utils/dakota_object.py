@@ -4,8 +4,10 @@ import uuid
 import traceback
 import contextlib
 import os
+import sys
 from pathlib import Path
 import dakota.environment as dakenv
+from pathos.multiprocessing import ProcessingPool as Pool
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.DEBUG)
@@ -20,6 +22,26 @@ def working_directory(path):
         yield
     finally:
         os.chdir(prev_cwd)
+
+
+class DummyFile:
+    def write(self, x):
+        pass
+
+    def flush(self):
+        pass
+
+
+@contextlib.contextmanager
+def nostdout():
+    save_stdout = sys.stdout
+    sys.stdout = DummyFile()
+    yield
+    sys.stdout = save_stdout
+
+
+def model_wrapper(model, param_set):
+    return model(**param_set)
 
 
 class Map:
@@ -43,10 +65,13 @@ class Map:
         if self.n_runners == 1:
             for param_set in params_set:
                 outputs_set.append(self.model(**param_set))
-            # raise ValueError(f"This is the output: {outputs_set}")
         else:
-            # TODO use multiprocessing; return in strict order
-            raise NotImplementedError(f"params_set: {params_set}")
+            with Pool(self.n_runners) as pool:
+                outputs_set = pool.map(
+                    model_wrapper, [self.model] * len(params_set), params_set
+                )
+                pool.close()
+                pool.join()
 
         return outputs_set
 
@@ -80,7 +105,8 @@ class DakotaObject:
             assert (
                 self.map_object is not None
             ), "model_callback should not be executed if map_object is None"
-            obj_sets = self.map_object.evaluate(param_sets)
+            with nostdout():
+                obj_sets = self.map_object.evaluate(param_sets)
             dak_outputs = [
                 {"fns": [obj_set[response_label] for response_label in response_labels]}
                 for obj_set, response_labels in zip(obj_sets, all_response_labels)

@@ -9,14 +9,17 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from tests.test_utils.test_funs_git import get_model_from_optistim_repo, create_run_dir
 from utils.funs_create_dakota_conf import create_function_sampling
-from utils.funs_data_processing import process_input_file
+from utils.funs_data_processing import load_data, get_non_dominated_indices
 from utils.dakota_object import DakotaObject, Map
+from utils.funs_plotting import plot_objective_space
+
+MAXAMP = 5.0
+
+NUM_SAMPLES = 200
+N_RUNNERS = 10
 
 
-NUM_SAMPLES = 20
-N_RUNNERS = 1
-
-
+## e.g. previously called "load_data_dakota_free_pulse_optimization"
 def postpro_optistim_samples(df: pd.DataFrame) -> pd.DataFrame:
     ## Add objective functions with proper names; leave the old ones as columns as well
     if "1-activation" in df.columns:
@@ -151,7 +154,11 @@ model = get_model_from_optistim_repo(run_dir)
 
 # create Dakota sampling file
 dakota_conf = create_function_sampling(
-    fun=model, num_samples=NUM_SAMPLES, batch_mode=True
+    fun=model,
+    num_samples=NUM_SAMPLES,
+    batch_mode=True,
+    lower_bounds=[-MAXAMP for _ in range(len(model.__annotations__["inputs"]))],
+    upper_bounds=[MAXAMP for _ in range(len(model.__annotations__["inputs"]))],
 )
 
 # run/retrieve Dakota sampling file
@@ -160,9 +167,27 @@ dakobj = DakotaObject(map)
 dakobj.run(dakota_conf, output_dir=run_dir)
 
 # analyze results (save plots; for git logs)
-sampling_results = process_input_file(run_dir / "results.dat")
-
-
+sampling_results_df = load_data(run_dir / "results.dat")
+sampling_results_df = postpro_optistim_samples(sampling_results_df)
+non_dominated_indices = get_non_dominated_indices(
+    sampling_results_df,
+    optimized_vars=["Energy", "Activation (%)"],
+    optimization_modes=["min", "max"],
+)
+plot_objective_space(
+    sampling_results_df,
+    non_dominated_indices=non_dominated_indices,
+    xvar="Energy",
+    yvar="Activation (%)",
+    ylim=(0, 100),
+    xlabel="Relative Energy (au)",
+    ylabel="Activation (%)",
+    title="Sampled Objective Space",
+    facecolors="none",
+    savedir=run_dir,
+    savefmt="png",
+)
 ## TODO try to use an input schema form, or simply parameters here,
 # so it is clear for which input parameters we get which output plots
 # (save them to disk & git-track them)
+print("DONE")

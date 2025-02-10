@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Callable, Dict
+from typing import List, Optional, Tuple, Callable, Literal, Dict
 import os
 import json
 import numpy as np
@@ -145,11 +145,17 @@ def load_data(
             columns, data = _parse_json_dict(file)
             dfs.append(pd.DataFrame(data=data, columns=columns))
         elif ext == ".csv":
-            dfs.append(pd.read_csv(file))
+            df = pd.read_csv(file)
+            if len(df.columns) == 1:
+                df = pd.read_csv(file, sep=" ", header=None)
+            dfs.append(df)
         else:
             raise ValueError(f"File {file} is not a DAT / TXT / JSON / CSV file")
 
     df = pd.concat(dfs, ignore_index=True)
+    for c in df.columns:
+        ## Assume all columns are numeric, except for the 'interface' column
+        df[c] = pd.to_numeric(df[c]) if "interface" not in c else df[c]
     return df
 
 
@@ -327,15 +333,36 @@ def is_dominated(point: np.ndarray, other_points: np.ndarray):
     return any(all(point >= other) for other in other_points)
 
 
-def get_non_dominated_indices(data, sort_by_column="Objective1"):
-    data = data.copy()
+def get_non_dominated_indices(
+    data: pd.DataFrame,
+    optimized_vars: List[str],
+    optimization_modes: List[Literal["min", "max"]],
+    sort_by_column: Optional[str] = None,
+) -> List[int]:
+    data = data[optimized_vars].copy()
+    if len(optimized_vars) != len(optimization_modes):
+        raise ValueError(
+            "The number of optimized variables and optimization modes must match"
+        )
+    for var, mode in zip(optimized_vars, optimization_modes):
+        if mode == "max":
+            data[var] = -data[var]
+        elif mode == "min":
+            pass
+        else:
+            raise ValueError(
+                f"Optimization mode {mode} not recognized. Only 'min' and 'max' are allowed"
+            )
+
     non_dominated_indices = []
     for i, point in data.iterrows():
         if not is_dominated(point.values, data.drop(i).values):  # type: ignore
             non_dominated_indices.append(i)
 
-    sorted_indices = (
-        data.loc[non_dominated_indices].sort_values(by=sort_by_column).index.values
-    )
-
-    return sorted_indices
+    if sort_by_column:
+        sorted_indices = (
+            data.loc[non_dominated_indices].sort_values(by=sort_by_column).index.values
+        )
+        return list(sorted_indices)
+    else:
+        return non_dominated_indices

@@ -15,13 +15,16 @@ from utils.funs_evaluate import evaluate_sumo_along_axes
 ##################################################################
 TRAINING_FILE = Path("./data/results_Final_50LHS_TitrationProcessed.csv")
 run_dir = create_run_dir(Path("."), "evaluate")
-N_INPUTS = 5 + 6  # EM + Thermal
+N_INPUTS = 5 + 6  # EM + Thermal -- variability is in the data,
+# whether we want to plot them or not
 N_OUTPUTS = (
     4  #### Current Shunting
     + 4 * 3  #### Dosimetry in 3 areas
     + 3  #### Thermal
     # + 7  #### Neuro
 )
+PLOT_EM_PARAMETERS = False
+PLOT_THERMAL_PARAMETERS = True
 ##################################################################
 
 
@@ -36,8 +39,12 @@ def normalize_nih_results(df: pd.DataFrame) -> pd.DataFrame:
             "log" not in c
         ), "Log found. The normalization operation assumes variables in linear space."
 
-        if "Thermal_Peak" in c or "Dosimetry" in c or "Shunting" in c:
+        if "Thermal_Peak" in c or "Dosimetry" in c:  # or "Shunting" in c:
+            # if c == "EM_Shunting_Total_Current":
+            #     continue
             df[c] = df[c] / df["EM_Shunting_Total_Current"]
+            # if "Total_Current" not in c:
+            df.rename(columns={c: "Normalized_" + c}, inplace=True)
 
     return df
 
@@ -80,9 +87,9 @@ def nih_label_conversion(old_label: str) -> str:
     elif "PeakE" in old_label:
         return tissue + "Peak E-field"
     elif "Iso99E" in old_label:
-        return tissue + "99% Iso-Percentile E-field"
+        return tissue + "$99\\%$ Iso-Percentile E-field"
     elif "Iso98E" in old_label:
-        return tissue + "98% Iso-Percentile E-field"
+        return tissue + "$98\\%$ Iso-Percentile E-field"
     elif "icnirp_peaks" in old_label:
         return tissue + "ICNIRP Peak"
     elif "Thermal_Peak" in old_label:
@@ -92,7 +99,7 @@ def nih_label_conversion(old_label: str) -> str:
             return " ".join(old_label.split("_")[-3:])
         elif "Quantile" in old_label:
             q = old_label.split("_")[-1].split("percent")[0]
-            return f"Neuro {q}% Quantile"
+            return f"Neuro {q}$\\%$ Quantile"
         else:
             raise ValueError("Did not find right keywork in Neuro label")
     elif "ThermalConductivity" in old_label:
@@ -112,28 +119,38 @@ def nih_label_conversion(old_label: str) -> str:
 
 # load (and process) data (inc taking logs)
 TRAINING_FILE = Path(shutil.copy(TRAINING_FILE, run_dir))
-var_names = get_variable_names_from_results_file(TRAINING_FILE)
-assert len(var_names) == N_INPUTS + N_OUTPUTS, (
-    f"Number of variables in data {len(var_names)} does not coincide with "
-    f"expected number of input variables {N_INPUTS} and output responses {N_OUTPUTS}"
-)
 PROCESSED_TRAINING_FILE = process_input_file(
     TRAINING_FILE, make_log=True, custom_operations=normalize_nih_results
 )
 var_names = get_variable_names_from_results_file(PROCESSED_TRAINING_FILE)
+assert len(var_names) == N_INPUTS + N_OUTPUTS, (
+    f"Number of variables in data {len(var_names)} does not coincide with "
+    f"expected number of input variables {N_INPUTS} and output responses {N_OUTPUTS}"
+)
 input_vars = var_names[:N_INPUTS]
 output_vars = var_names[-N_OUTPUTS:]
 ### FIXME not able to give only some output vars; would need to
 # remove them from the (PROCESSED_)TRAINING_FILE as well
 PROCESSED_TRAINING_FILE = process_input_file(
-    PROCESSED_TRAINING_FILE, columns_to_remove=output_vars[:12]
+    PROCESSED_TRAINING_FILE, columns_to_remove=output_vars[:15]
 )
+response_names = output_vars[15:]
+if PLOT_EM_PARAMETERS:
+    response_names = [r + "_EMParameters" for r in response_names]
+if PLOT_THERMAL_PARAMETERS:
+    response_names = [r + "_ThermalParameters" for r in response_names]
+#
+plotting_input_vars = (input_vars[:5] if PLOT_EM_PARAMETERS else []) + (
+    input_vars[5:] if PLOT_THERMAL_PARAMETERS else []
+)
+assert len(input_vars), "No input variables selected for plotting!"
 
 evaluate_sumo_along_axes(
     run_dir,
     PROCESSED_TRAINING_FILE,
-    input_vars,
-    output_vars[12:],
+    input_vars=input_vars,
+    plotting_input_vars=plotting_input_vars,
+    response_vars=response_names,
     label_converter=nih_label_conversion,
 )
 

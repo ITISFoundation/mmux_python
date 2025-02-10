@@ -4,9 +4,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-# sudo apt install texlive texlive-latex-extra texlive-fonts-recommended dvipng
-# import matplotlib as mpl
-# mpl.rcParams.update(mpl.rcParamsDefault)
+# sudo apt install texlive texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 plt.rcParams["text.usetex"] = True
 
 
@@ -94,7 +92,7 @@ def plot_response_curves(
             labels=[f"{np.exp(y):.2e}" for y in ax.get_yticks()],
         )
     plt.suptitle(ylabel, fontsize=20)
-    # plt.tight_layout()
+    plt.tight_layout()
 
     if savedir is None:
         savedir = Path(".")

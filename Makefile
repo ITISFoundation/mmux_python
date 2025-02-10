@@ -11,7 +11,9 @@ clean:
 
 # Virtual environment target
 .PHONY: pyenv
+# the apt install might need sudo? But that is only for latex in Matplotlib so not critical, could be removed.
 pyenv: clean
+	@apt install texlive texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 	@python -m venv $(VENV_DIR)
 	@. ./$(VENV_DIR)/bin/activate && pip install -r requirements.txt
 

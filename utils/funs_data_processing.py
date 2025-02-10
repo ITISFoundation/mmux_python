@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable, Dict
+from typing import List, Optional, Tuple, Callable, Dict
 import os
 import json
 import numpy as np
@@ -48,7 +48,7 @@ def process_json_file(file: str) -> str:
     return processed_file
 
 
-def get_variable_names(file: str | Path) -> List[str]:
+def get_variable_names_from_results_file(file: str | Path) -> List[str]:
     file = Path(file)
     assert file.exists(), f"File {file} does not exist"
     _, ext = os.path.splitext(file)
@@ -63,6 +63,25 @@ def get_variable_names(file: str | Path) -> List[str]:
         return df.columns.tolist()
     else:
         raise ValueError(f"File {file} is not a DAT / TXT / JSON / CSV file")
+
+
+def get_variable_names_from_dakota_file(
+    dakota_file: str | Path,
+) -> Tuple[List[str], List[str]]:
+    dakota_file = Path(dakota_file)
+    assert dakota_file.exists(), f"File {dakota_file} does not exist"
+    with open(dakota_file) as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        if "descriptors" in line and "variables" in lines[i - 1]:
+            variables = line.split()[1:]
+            variables = [v[1:-1] for v in variables]  # remove quotes
+            # append all elements (space-separated) after "descriptors"
+        if "descriptors" in line and "responses" in lines[i - 1]:
+            responses = line.split()[1:]
+            responses = [r[1:-1] for r in responses]  # remove quotes
+
+    return variables, responses
 
 
 def load_data(
@@ -259,3 +278,21 @@ def extract_predictions_along_axes(
             )
 
     return results
+
+
+def is_dominated(point: np.ndarray, other_points: np.ndarray):
+    return any(all(point >= other) for other in other_points)
+
+
+def get_non_dominated_indices(data, sort_by_column="Objective1"):
+    data = data.copy()
+    non_dominated_indices = []
+    for i, point in data.iterrows():
+        if not is_dominated(point.values, data.drop(i).values):  # type: ignore
+            non_dominated_indices.append(i)
+
+    sorted_indices = (
+        data.loc[non_dominated_indices].sort_values(by=sort_by_column).index.values
+    )
+
+    return sorted_indices

@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import shutil
 from utils.funs_data_processing import (
-    get_variable_names,
+    get_variable_names_from_results_file,
     process_input_file,
 )
 from utils.funs_evaluate import create_run_dir
@@ -25,7 +25,7 @@ N_OUTPUTS = (
 ##################################################################
 
 
-def normalize_thermals(df: pd.DataFrame):
+def normalize_thermals(df: pd.DataFrame) -> pd.DataFrame:
     """Custom operations for NIH dataset.
     Normalize Thermal peaks by total current. This normalization is already in the simulation,
     but Thermal deposition scales with power (e.g. square of current) so an additional normalization is necessary.
@@ -46,7 +46,7 @@ def normalize_thermals(df: pd.DataFrame):
 
 # load (and process) data (inc taking logs)
 TRAINING_FILE = Path(shutil.copy(TRAINING_FILE, run_dir))
-var_names = get_variable_names(TRAINING_FILE)
+var_names = get_variable_names_from_results_file(TRAINING_FILE)
 assert len(var_names) == N_INPUTS + N_OUTPUTS, (
     f"Number of variables in data {len(var_names)} does not coincide with "
     f"expected number of input variables {N_INPUTS} and output responses {N_OUTPUTS}"
@@ -54,7 +54,7 @@ assert len(var_names) == N_INPUTS + N_OUTPUTS, (
 PROCESSED_TRAINING_FILE = process_input_file(
     TRAINING_FILE, make_log=True, custom_operations=normalize_thermals
 )
-var_names = get_variable_names(PROCESSED_TRAINING_FILE)
+var_names = get_variable_names_from_results_file(PROCESSED_TRAINING_FILE)
 input_vars = var_names[:N_INPUTS]
 output_vars = var_names[-N_OUTPUTS:]
 ### FIXME not able to give only some output vars; would need to

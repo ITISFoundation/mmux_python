@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union, Tuple
+import pandas as pd
 import numpy as np
 from pathlib import Path
 
@@ -41,3 +42,32 @@ def plot_response_curves(
     savepath = savedir / (output_label + "." + savefmt)
     plt.savefig(savepath, format=savefmt, dpi=300)
     print(f"Figure saved in {savepath}")
+
+
+def plot_objective_space(
+    F: Union[pd.DataFrame, np.ndarray],
+    ax: Optional[plt.Axes] = None,  # type: ignore
+    xlim: Tuple[float, float] = (0, 20),
+    ylim: Tuple[float, float] = (0, 1e2),
+    color: str = "blue",
+    xlabel: str = "Relative Energy (au)",
+    ylabel: str = "Activation (%)",
+    title: str = "Objective Space",
+    facecolors: str = "none",
+):
+    """Plot the objective space of a set of points F."""
+    if isinstance(F, pd.DataFrame):
+        F = F.values
+
+    if ax is None:
+        ax = plt.subplots(figsize=(10, 10))[1]
+
+    plt.scatter(F[:, 1], F[:, 0], s=30, facecolors=facecolors, edgecolors=color)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+
+    plt.hlines(0, xmin=0, xmax=2000, color="gray", linestyle="--", alpha=0.5)
+
+    plt.title(title)

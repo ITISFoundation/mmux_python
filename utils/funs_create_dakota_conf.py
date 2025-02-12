@@ -401,3 +401,49 @@ def create_sumo_evaluation(
     if dakota_conf_file:
         write_to_file(dakota_conf, dakota_conf_file)
     return dakota_conf
+
+
+def create_optimization_moga(
+    fun: Callable,
+    moga_kwargs: dict,
+    # max_iterations: int = 100,
+    # max_function_evaluations: int = 5000,
+    # population_size: int = 32,
+    # max_designs: int = 32,
+    # seed: int = 12345,
+    batch_mode: bool = True,  ## always active here
+    lower_bounds: Optional[list] = None,
+    upper_bounds: Optional[list] = None,
+    dakota_conf_file: Optional[str | Path] = None,
+    dakota_results_file: Optional[Path] = None,  # "results_evaluation.dat",
+):
+    dakota_conf = start_dakota_file(
+        top_method_pointer="MOGA",
+        results_file_name=(
+            str(dakota_results_file) if dakota_results_file else "results.dat"
+        ),
+    )
+    dakota_conf += add_moga_method(**moga_kwargs)
+
+    inputs: dict = fun.__annotations__["inputs"]
+    outputs: dict = fun.__annotations__["outputs"]
+    dakota_conf += add_continuous_variables(
+        variables=list(inputs.keys()),
+        lower_bounds=(
+            lower_bounds if lower_bounds else [0.0 for _ in range(len(inputs))]
+        ),
+        upper_bounds=(
+            upper_bounds if upper_bounds else [1.0 for _ in range(len(inputs))]
+        ),
+    )
+
+    ## TODO need to find which ones to maximize and flip them!!
+    # run now wo that, should converge very nicely to all zeroes. As quick test.
+    dakota_conf += add_responses(
+        descriptors=list(outputs.keys()),
+    )
+    dakota_conf += add_python_interface("model", batch_mode=batch_mode)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf

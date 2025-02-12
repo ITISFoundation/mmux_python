@@ -213,13 +213,13 @@ def add_sampling_method(
 
 def add_evaluation_method(
     input_file: str,
-    model_pointer: str = "SURR_MODEL",
+    model_pointer: Optional[str] = None,  # = "SURR_MODEL",
     includes_eval_id: bool = False,
 ) -> str:
     eval_str = f"""
         method
             id_method "EVALUATION"
-            model_pointer '{model_pointer}'
+            {f"model_pointer '{model_pointer}'" if model_pointer else ""}
         """
     if input_file is not None:
         eval_str += f"""
@@ -351,6 +351,34 @@ def create_function_sampling(
 
     if dakota_conf_file:
         write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf
+
+
+def create_function_evaluation(
+    fun: Callable,
+    samples_file: Path,
+    batch_mode: bool = True,  ## always active here
+    dakota_conf_file: Optional[str | Path] = None,
+    dakota_results_file: Optional[Path] = None,  # "results_evaluation.dat",
+):
+    assert samples_file.is_file(), f"{samples_file} does not exist"
+    dakota_conf = start_dakota_file(
+        top_method_pointer="EVALUATION",
+        results_file_name=(
+            str(dakota_results_file) if dakota_results_file else "results.dat"
+        ),
+    )
+    dakota_conf += add_evaluation_method(str(samples_file.resolve()))
+    dakota_conf += add_evaluator_model()
+    inputs: dict = fun.__annotations__["inputs"]
+    outputs: dict = fun.__annotations__["outputs"]
+    dakota_conf += add_continuous_variables(variables=list(inputs.keys()))
+    dakota_conf += add_responses(descriptors=list(outputs.keys()))
+    dakota_conf += add_python_interface("model", batch_mode=batch_mode)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+
     return dakota_conf
 
 

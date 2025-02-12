@@ -7,7 +7,10 @@ import os
 import sys
 from pathlib import Path
 import dakota.environment as dakenv
-from pathos.multiprocessing import ProcessingPool as Pool
+
+from pathos.pools import ProcessPool as Pool
+
+# from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.DEBUG)
@@ -40,10 +43,6 @@ def nostdout():
     sys.stdout = save_stdout
 
 
-def model_wrapper(model, param_set):
-    return model(**param_set)
-
-
 class Map:
     ## TODO should the "model" Callable be given here or in DakotaObject?
     def __init__(self, model: Callable, n_runners: int = 1) -> None:
@@ -55,6 +54,9 @@ class Map:
         logger.info(f"Optimizer uuid is {self.uuid}")
         pass
 
+    def model_wrapper(self, param_set):
+        return self.model(**param_set)
+
     def evaluate(self, params_set: List[dict]):
         outputs_set = []
         logger.info(f"Evaluating {len(params_set)} parameter sets")
@@ -64,12 +66,12 @@ class Map:
         ), "A negative (or zero) number of runners is not allowed."
         if self.n_runners == 1:
             for param_set in params_set:
-                outputs_set.append(self.model(**param_set))
+                outputs_set.append(self.model_wrapper(param_set))
         else:
+            # with ThreadPool(self.n_runners) as pool:
+            #     outputs_set = pool.map(func=self.model_wrapper, iterable=params_set)
             with Pool(self.n_runners) as pool:
-                outputs_set = pool.map(
-                    model_wrapper, [self.model] * len(params_set), params_set
-                )
+                outputs_set = pool.map(self.model_wrapper, params_set)
                 pool.close()
                 pool.join()
 

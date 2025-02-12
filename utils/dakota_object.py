@@ -72,8 +72,8 @@ class Map:
             #     outputs_set = pool.map(func=self.model_wrapper, iterable=params_set)
             with Pool(self.n_runners) as pool:
                 outputs_set = pool.map(self.model_wrapper, params_set)
-                pool.close()
-                pool.join()
+                # pool.close()
+                # pool.join()
 
         return outputs_set
 

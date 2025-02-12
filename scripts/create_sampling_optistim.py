@@ -13,8 +13,8 @@ from utils.funs_data_processing import load_data, get_non_dominated_indices
 from utils.dakota_object import DakotaObject, Map
 from utils.funs_plotting import plot_objective_space
 
-MAXAMP = 5.0
-NUM_SAMPLES = 500
+MAXAMP = 7.50
+NUM_SAMPLES = 200
 N_RUNNERS = 10
 
 

@@ -19,13 +19,13 @@ from utils.dakota_object import DakotaObject, Map
 from utils.funs_plotting import plot_objective_space
 
 ## Default values
-PW = 0.05
+PW = 0.3
 MAXAMP = 5.0
 
 AMP = 1.0
 NUM_SAMPLES = 50
 N_RUNNERS = 1
-SWEEP_MODE = "PW"  # "AMP" or "PW"
+SWEEP_MODE = "AMP"  # "AMP" or "PW"
 
 run_dir = create_run_dir(Path.cwd(), "evaluation")
 model = get_model_from_optistim_repo(run_dir)

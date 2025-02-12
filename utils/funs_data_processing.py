@@ -336,23 +336,26 @@ def is_dominated(point: np.ndarray, other_points: np.ndarray):
 def get_non_dominated_indices(
     data: pd.DataFrame,
     optimized_vars: List[str],
-    optimization_modes: List[Literal["min", "max"]],
+    optimization_modes: Optional[List[Literal["min", "max"]]] = None,
     sort_by_column: Optional[str] = None,
 ) -> List[int]:
     data = data[optimized_vars].copy()
-    if len(optimized_vars) != len(optimization_modes):
-        raise ValueError(
-            "The number of optimized variables and optimization modes must match"
-        )
-    for var, mode in zip(optimized_vars, optimization_modes):
-        if mode == "max":
-            data[var] = -data[var]
-        elif mode == "min":
-            pass
-        else:
+
+    ## extract to separate function; unify with interface of MinimizationModel
+    if optimization_modes:
+        if len(optimized_vars) != len(optimization_modes):
             raise ValueError(
-                f"Optimization mode {mode} not recognized. Only 'min' and 'max' are allowed"
+                "The number of optimized variables and optimization modes must match"
             )
+        for var, mode in zip(optimized_vars, optimization_modes):
+            if mode == "max":
+                data[var] = -data[var]
+            elif mode == "min":
+                pass
+            else:
+                raise ValueError(
+                    f"Optimization mode {mode} not recognized. Only 'min' and 'max' are allowed"
+                )
 
     non_dominated_indices = []
     for i, point in data.iterrows():

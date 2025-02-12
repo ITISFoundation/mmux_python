@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from matplotlib.axes import Axes
+import seaborn as sns
 
 
 def plot_response_curves(
@@ -47,13 +48,15 @@ def plot_response_curves(
 
 def plot_objective_space(
     df: pd.DataFrame,
+    xvar: str,
+    yvar: str,
     non_dominated_indices: Optional[List[int]] = None,
     ax: Optional[Axes] = None,  # type: ignore
-    xvar: Optional[str] = None,
-    yvar: Optional[str] = None,
+    hvar: Optional[str] = None,
     xlim: Optional[Tuple[float, float]] = None,  # = (0, 20),
     ylim: Optional[Tuple[float, float]] = None,  # (0, 1e2),
     scattercolor: str = "blue",
+    palette: str = "Blues",
     scattersize: int = 30,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
@@ -66,15 +69,21 @@ def plot_objective_space(
     if ax is None:
         ax = plt.subplots(figsize=(10, 10))[1]
 
-    xvalues = df[xvar] if xvar else df.iloc[:, 0]
-    yvalues = df[yvar] if yvar else df.iloc[:, 1]
-    plt.scatter(
-        xvalues, yvalues, s=scattersize, facecolors=facecolors, edgecolors=scattercolor
+    sns.scatterplot(
+        df,
+        x=xvar,
+        y=yvar,
+        hue=hvar,
+        palette=palette,
+        size=scattersize,
+        facecolors=facecolors,
+        edgecolors=scattercolor,
     )
     if non_dominated_indices:
-        plt.scatter(
-            xvalues.iloc[pd.Index(non_dominated_indices)],
-            yvalues.iloc[pd.Index(non_dominated_indices)],
+        sns.scatterplot(
+            df.iloc[pd.Index(non_dominated_indices)],
+            x=xvar,
+            y=yvar,
             s=scattersize,
             facecolors="none",
             edgecolors="red",

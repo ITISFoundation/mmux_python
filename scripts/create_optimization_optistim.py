@@ -106,9 +106,21 @@ if __name__ == "__main__":
             axs = axs.flatten()  # type:ignore
         assert axs is not None
 
+        window = 100  # Define the window size for the moving average
         for i, var in enumerate(output_vars):
             ax = axs[i]
-            ax.plot(df[var], label=var)
+            rolling_mean = df[var].rolling(window=window).mean()
+            rolling_min = df[var].rolling(window=window).min()
+            rolling_max = df[var].rolling(window=window).max()
+
+            ax.plot(rolling_mean, label=f"{var} (mean)")
+            ax.fill_between(
+                range(len(df[var])),
+                rolling_min,
+                rolling_max,
+                alpha=0.2,
+                label=f"{var} (min-max)",
+            )
             ax.set_xlabel("Evaluation")
             ax.set_title(var)
 

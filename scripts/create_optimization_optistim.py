@@ -82,7 +82,7 @@ if __name__ == "__main__":
             ## hyperparams below created well distributed front in SCS example. Let's try.
             "population_size": 100,
             "max_iterations": 1000,
-            "radial_distances": [0.1, 0.1, 0.1],
+            "radial_distances": [0.01, 0.01, 0.01],
             "seed": 42,
         },
         batch_mode=True,

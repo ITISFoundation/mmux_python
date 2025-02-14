@@ -88,7 +88,7 @@ def plot_objective_space(
             df.iloc[pd.Index(non_dominated_indices)],
             x=xvar,
             y=yvar,
-            s=scattersize,
+            size=scattersize,
             facecolors="none",
             edgecolors="red",
         )

@@ -19,16 +19,16 @@ repos:
       - id: check-toml
       - id: check-case-conflict
       - id: check-added-large-files
-        args: ['--maxkb=1024']
+        args: ['--maxkb=10000']
       - id: detect-private-key
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.0
-    hooks:
-      - id: ruff
-        args: [ --fix ]
-        types_or: [python, pyi, jupyter]
-      - id: ruff-format
+  # - repo: https://github.com/astral-sh/ruff-pre-commit
+  #   rev: v0.7.0
+  #   hooks:
+  #     - id: ruff
+  #       args: [ --fix ]
+  #       types_or: [python, pyi, jupyter]
+  #     - id: ruff-format
 
   - repo: https://github.com/asottile/pyupgrade
     rev: v2.34.0

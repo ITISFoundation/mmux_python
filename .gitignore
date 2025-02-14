@@ -1,7 +1,4 @@
 ## MMUX-specific
-runs
-runner_optistim.env
-**.env
 GAF_kernels/
 TODO**
 

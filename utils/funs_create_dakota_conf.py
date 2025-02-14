@@ -1,6 +1,7 @@
 ### Useful functions to couple Python and Dakota - to use accross different scripts & notebooks
 from typing import List, Optional, Literal, Callable
 from pathlib import Path
+import numpy as np
 
 
 def start_dakota_file(
@@ -233,34 +234,47 @@ def add_evaluation_method(
 
 
 def add_moga_method(
-    max_function_evaluations=5000,
-    max_iterations=100,
-    population_size=32,
-    max_designs=32,
-    id_method="MOGA",
-    seed=12345,
+    id_method: str = "MOGA",
+    max_function_evaluations: int = 5000,
+    max_iterations: int = 100,
+    population_size: int = 32,
+    max_designs: Optional[int] = None,
+    radial_distances: Optional[List[float]] = None,
+    model_pointer: Optional[str] = None,
+    seed: int = 12345,
 ):
-    return f"""
+    conf = f"""
         method
             id_method = '{id_method}'
+            {f"model_pointer '{model_pointer}'" if model_pointer else ""}
             moga
             population_size = {population_size} # Set the initial population size in JEGA methods
             max_function_evaluations = {max_function_evaluations}
             max_iterations = {max_iterations}
 
             ## hyperparameters taken from Medtronic's pulse shape optimization
-            fitness_type
-                layer_rank
+            fitness_type layer_rank
+            replacement_type elitist  """
+
+    if max_designs:
+        assert (
+            radial_distances is None
+        ), "Cannot have both max_designs and radial_distances"
+        conf += f"""
+            niching_type max_designs {max_designs} # Limit number of solutions to remain in the population           """
+    if radial_distances:
+        assert max_designs is None, "Cannot have both max_designs and radial_distances"
+        conf += f"""
+            niching_type radial {" ".join([str.zfill(str(np.round(r,2)), 2) for r in radial_distances])} # Limit number of solutions to remain in the population            """
+
+    conf += f"""
             crossover_type
                 multi_point_real 5
             mutation_type
                 offset_uniform
-            niching_type
-                max_designs {max_designs} # Limit number of solutions to remain in the population
-            replacement_type
-                elitist
             seed = {seed}
         """
+    return conf
 
 
 def add_evaluator_model(

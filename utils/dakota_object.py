@@ -159,13 +159,11 @@ class DakotaObject:
 # logger.error("And non-ASCII stuff, too, like Øresund and Malmö")
 
 if __name__ == "__main__":
-    N_RUNNERS = 10
-    NUM_SAMPLES = 100
+    N_RUNNERS = 4
+    NUM_SAMPLES = 4
     sys.path.append(str(Path(__file__).parent.parent))
-    from tests.test_utils.test_funs_git import (
-        get_model_from_optistim_repo,
-        create_run_dir,
-    )
+    from tests.test_utils.test_funs_git import create_run_dir
+    from scripts.PulseOptimizationSpinal.utils_spinal import get_model_from_spinal_repo
     import timeit
     import numpy as np
 
@@ -176,16 +174,18 @@ if __name__ == "__main__":
         print(f"Time taken: {end-start}")
 
     run_dir = create_run_dir(Path.cwd(), "opt")
-    model = get_model_from_optistim_repo(run_dir)
+    model = get_model_from_spinal_repo(run_dir)
     map = Map(model, n_runners=N_RUNNERS)
 
+    import pandas as pd
+
+    df = pd.read_csv("SinusoidPulses.csv", sep=" ")
+
     def evaluate():
-        params_set = [
-            {f"p{i}": np.random.randn() for i in range(15)} for _ in range(NUM_SAMPLES)
-        ]
+        params_set = [dict(df.iloc[i]) for i in range(len(df))]
         with nostdoutstderr():
             map.evaluate(params_set)
 
     timeit_wrapper(evaluate)
-    timeit_wrapper(evaluate)
+    # timeit_wrapper(evaluate)
     print("Done")

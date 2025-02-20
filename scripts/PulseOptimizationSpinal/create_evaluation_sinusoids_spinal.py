@@ -13,7 +13,11 @@ from tests.test_utils.test_funs_git import (
 from utils.funs_create_dakota_conf import (
     create_function_evaluation,
 )
-from utils_spinal import get_model_from_spinal_repo, postpro_spinal_samples
+from utils_spinal import (
+    get_model_from_spinal_repo,
+    postpro_spinal_samples,
+    create_sinusoid_pulse,
+)
 from utils.funs_data_processing import load_data
 from utils.dakota_object import DakotaObject, Map
 from utils.funs_plotting import plot_objective_space
@@ -21,7 +25,7 @@ from utils.funs_plotting import plot_objective_space
 ## Default values
 MAXAMP = 10.0
 FREQPOS = 0
-NFREQS = 15
+NFREQS = 20
 
 AMP = 5.0
 NUM_SAMPLES = 50
@@ -40,21 +44,6 @@ DURATION = get_attr_from_repo(
     run_dir, module_name="get_pulse.py", function_name="DURATION"
 )
 PULSE_FILE = "./SinusoidPulses.csv"
-
-
-## Sinusoids - I can get the response to diff frequencies.
-# With A1 being 0.2ms = 5kHz - wait isnt this huge? But wait, 80us is 12kHz...
-# Well, we will figure it out now...
-def create_sinusoid_pulse(amp: float = 1.0, freqpos: int = 0, NFREQS: int = 10):
-    var_names = [f"A{i}" for i in range(NFREQS)] + (
-        [
-            f"B{i}" for i in range(NFREQS)
-        ]  # this part is always zeros bcs for frequency response it is the same
-    )
-    # freqs = [i / DURATION * 1000 for i in range(NFREQS)]  # in Hz
-    vars = np.zeros((len(var_names),))
-    vars[freqpos] = amp
-    return vars, var_names
 
 
 if SWEEP_MODE == "AMP":

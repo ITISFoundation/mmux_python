@@ -9,6 +9,22 @@ from utils.funs_git import (
 from dotenv import dotenv_values
 from typing import Callable, Tuple, Optional
 import pandas as pd
+import numpy as np
+
+
+## Sinusoids - I can get the response to diff frequencies.
+# With A1 being 1.0ms = 1kHz - wait isnt this huge? But wait, 80us is 12kHz...
+# Well, we will figure it out now...
+def create_sinusoid_pulse(amp: float = 1.0, freqpos: int = 0, NFREQS: int = 10):
+    var_names = [f"A{i}" for i in range(NFREQS)] + (
+        [
+            f"B{i}" for i in range(NFREQS)
+        ]  # this part is always zeros bcs for frequency response it is the same
+    )
+    # freqs = [i / DURATION * 1000 for i in range(NFREQS)]  # in Hz
+    vars = np.zeros((len(var_names),))
+    vars[freqpos] = amp
+    return vars, var_names
 
 
 def clone_spinal_repo(output_dir: Optional[Path] = None) -> Tuple[Path, str]:

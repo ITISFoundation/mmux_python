@@ -63,6 +63,10 @@ class Map:
 
     def model_wrapper(self, param_set):
         return self.model(**param_set)
+        # try:
+        # except Exception as e:
+        #     print(f"Found exception {e}. Trying again...")
+        #     return self.model(**param_set)
 
     def evaluate(self, params_set: List[dict]):
         outputs_set = []
@@ -75,10 +79,7 @@ class Map:
             outputs_set = [self.model_wrapper(param_set) for param_set in params_set]
         else:
             with Pool(self.n_runners) as pool:
-                # pool.restart()
                 outputs_set = pool.map(self.model_wrapper, params_set)
-                # pool.close()
-                # pool.join()
         return outputs_set
 
 
@@ -111,7 +112,8 @@ class DakotaObject:
             assert (
                 self.map_object is not None
             ), "model_callback should not be executed if map_object is None"
-            with nostdoutstderr():
+            # with nostdoutstderr():
+            with nostdout():
                 obj_sets = self.map_object.evaluate(param_sets)
             dak_outputs = [
                 {"fns": [obj_set[response_label] for response_label in response_labels]}

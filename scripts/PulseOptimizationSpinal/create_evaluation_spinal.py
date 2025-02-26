@@ -25,7 +25,7 @@ MAXAMP = 5.0
 AMP = 3.0
 NUM_SAMPLES = 50
 N_RUNNERS = 10
-SWEEP_MODE = "PW"  # "AMP" or "PW"
+SWEEP_MODE = "AMP"  # "AMP" or "PW"
 
 run_dir = create_run_dir(Path.cwd(), "evaluation")
 model = get_model_from_spinal_repo(run_dir)

@@ -11,7 +11,7 @@ def get_mmux_top_directory() -> Path:
     workspace_dir = Path(os.getcwd())
     if workspace_dir.name == "tests":
         workspace_dir = workspace_dir.parent
-    assert workspace_dir.name == "mmux_gui"
+    assert workspace_dir.name == "mmux_python"
     ## TODO this should eventually be renamed to MMUX
     return workspace_dir
 

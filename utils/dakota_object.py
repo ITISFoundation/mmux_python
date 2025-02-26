@@ -62,7 +62,11 @@ class Map:
         pass
 
     def model_wrapper(self, param_set):
-        return self.model(**param_set)
+        try:
+            return self.model(**param_set)
+        except Exception as e:
+            print(f"Found exception {e}. Trying again...")
+            return self.model(**param_set)
 
     def evaluate(self, params_set: List[dict]):
         outputs_set = []
@@ -111,7 +115,8 @@ class DakotaObject:
             assert (
                 self.map_object is not None
             ), "model_callback should not be executed if map_object is None"
-            with nostdoutstderr():
+            # with nostdoutstderr():
+            with nostdout():
                 obj_sets = self.map_object.evaluate(param_sets)
             dak_outputs = [
                 {"fns": [obj_set[response_label] for response_label in response_labels]}

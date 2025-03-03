@@ -13,8 +13,8 @@ from utils.funs_data_processing import load_data, get_non_dominated_indices
 from utils.dakota_object import DakotaObject, Map
 from utils.funs_plotting import plot_objective_space, plot_optimization_evolution
 
-MAXAMP = 7.50
-N_RUNNERS = 20
+MAXAMP = 5.0
+N_RUNNERS = 10
 
 ########################################################################################
 run_dir = create_run_dir(Path.cwd(), "opt")
@@ -64,7 +64,7 @@ dakota_conf = create_optimization_moga(
     moga_kwargs={
         "max_function_evaluations": 1e4,
         ## hyperparams below created well distributed front in SCS example. Let's try.
-        "population_size": 100,
+        "population_size": 50,
         "max_iterations": 1000,
         "radial_distances": [0.0, 0.01, 0.01, 0.01],
         "seed": 42,
@@ -89,32 +89,37 @@ savepath = run_dir / "optimization_evolution.png"
 savepath.touch()
 t = threading.Thread(target=dakobj.run, args=(dakota_conf, run_dir))
 t.start()
-while t.is_alive():  # this seems to time it rather ok :)
-    if (run_dir / "results.dat").is_file() and (
-        (time.time() - savepath.stat().st_mtime) >= REFRESH_RATE
-    ):
-        print("Generating plot with current Dakota optimziation results...")
-        results_df = load_data(run_dir / "results.dat")
-        results_df = postpro_spinal_samples(results_df)
-        results_df["FSI"] = -results_df["FSI"]
-        plot_optimization_evolution(
-            results_df,
-            ["FSI", "Energy", "Maximum Amplitude"],
-            savepath=savepath,
-        )
-        plot_objective_space(
-            results_df,
-            non_dominated_indices=list(results_df[-100:].index.values),
-            xvar="Energy",
-            yvar="FSI",
-            # hvar="%eval_id",
-            ylim=(0, 1),
-            title="Running Optimization - Objective Space",
-            facecolors="none",
-            savedir=run_dir,
-            savefmt="png",
-        )
-t.join()
+try:
+    while t.is_alive():  # this seems to time it rather ok :)
+        if (run_dir / "results.dat").is_file() and (
+            (time.time() - savepath.stat().st_mtime) >= REFRESH_RATE
+        ):
+            print("Generating plot with current Dakota optimization results...")
+            results_df = load_data(run_dir / "results.dat")
+            results_df = postpro_spinal_samples(results_df)
+            results_df["FSI"] = -results_df["FSI"]
+            plot_optimization_evolution(
+                results_df,
+                ["FSI", "Energy", "Maximum Amplitude"],
+                savepath=savepath,
+            )
+            plot_objective_space(
+                results_df,
+                non_dominated_indices=list(results_df[-100:].index.values),
+                xvar="Energy",
+                yvar="FSI",
+                # hvar="%eval_id",
+                ylim=(0, 1),
+                title="Running Optimization - Objective Space",
+                facecolors="none",
+                savedir=run_dir,
+                savefmt="png",
+            )
+except Exception as e:
+    print(f"An error occurred: {e}")
+    print("Stop")
+finally:
+    t.join()
 
 # analyze results (save plots; for git logs)
 results_df = load_data(run_dir / "results.dat")

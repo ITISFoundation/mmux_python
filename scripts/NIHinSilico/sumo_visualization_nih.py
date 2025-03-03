@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import sys
 
+sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.funs_data_processing import (
     get_variable_names,

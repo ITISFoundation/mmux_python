@@ -29,7 +29,7 @@ def get_nih_inputs_outputs(TRAINING_FILE: Path) -> Tuple[List[str], List[str]]:
             raise ValueError(f"Variable {var} not recognized as input or output.")
     logger.info(f"input_vars: {input_vars}")
     logger.info(f"output_vars: {output_vars}")
-    return {"input_vars": input_vars, "output_vars": output_vars}
+    return input_vars, output_vars
 
 
 def normalize_nih_results(df: pd.DataFrame):

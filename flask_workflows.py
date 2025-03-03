@@ -1,6 +1,16 @@
 from pathlib import Path
 from typing import List, Dict, Callable
 import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename="flask_workflows.log",
+    encoding="utf-8",
+    level=logging.INFO,
+    filemode="w",
+)
+logger.info("Logging started")
+
+
 import shutil
 import os
 from utils.funs_data_processing import (
@@ -11,14 +21,6 @@ from utils.funs_evaluate import create_run_dir
 from utils.funs_evaluate import evaluate_sumo_along_axes
 from flask import Flask, request  # type: ignore
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    filename="flask_workflows.log",
-    encoding="utf-8",
-    level=logging.INFO,
-    filemode="w",
-)
-logger.info("Logging started")
 app = Flask(__name__)
 base_dir = Path("/home/ordonez/mmux/mmux_react/flaskapi")
 

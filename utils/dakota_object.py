@@ -1,14 +1,13 @@
 from typing import Callable, List
-import logging
 import uuid
 import traceback
 import contextlib
 import os
 from pathlib import Path
 import dakota.environment as dakenv
+import logging
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename="dakota-object.log", encoding="utf-8", level=logging.DEBUG)
 
 
 @contextlib.contextmanager

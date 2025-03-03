@@ -18,10 +18,13 @@ def get_nih_inputs_outputs(TRAINING_FILE: Path) -> Tuple[List[str], List[str]]:
             or ("HeatTransferRate" in var)
         ):
             input_vars.append(var)
-            # input_vars.append(nih_label_conversion(var))
-        elif ("Thermal_Peak" in var) or ("Dosimetry" in var) or ("EM_Shunting" in var):
+        elif (
+            ("Thermal_Peak" in var)
+            or ("Dosimetry" in var)
+            or ("EM_Shunting" in var)
+            or ("Neuro" in var)
+        ):
             output_vars.append(var)
-            # output_vars.append(nih_label_conversion(var))
         else:
             logger.warning(
                 f"Variable {var} not recognized as input or output. Ignoring it."

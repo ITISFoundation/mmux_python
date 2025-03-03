@@ -1,5 +1,5 @@
 ### Useful functions to couple Python and Dakota - to use accross different scripts & notebooks
-from typing import List, Optional, Literal, Callable
+from typing import List, Optional, Literal, Callable, Dict
 from pathlib import Path
 
 
@@ -362,7 +362,7 @@ def create_sumo_evaluation(
     input_variables: List[str],
     output_responses: List[str],
     dakota_conf_file: Optional[str | Path] = None,
-):
+) -> str:
     dakota_conf = start_dakota_file()
     dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
     dakota_conf += add_evaluation_method(str(samples_file.resolve()))
@@ -372,4 +372,36 @@ def create_sumo_evaluation(
 
     if dakota_conf_file:
         write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf
+
+
+def create_uq_propagation(
+    build_file: Path,
+    # surrogate_type: Optional[str] = None, ## for now, always GP
+    # TODO be able to load sumo (instead of building every time)
+    input_variables: List[str],
+    input_means: Dict[str, float],
+    input_stds: Dict[str, float],
+    output_responses: List[str],
+    n_samples: int = 10000,
+    dakota_conf_file: Optional[str | Path] = None,
+) -> str:
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_sampling_method(num_samples=n_samples)
+    ## TODO this is only NORMAL uncertain -- need to generalize if we want to include other types of input distributions
+    dakota_conf += f"""
+        variables
+            id_variables = "VARIABLES"
+            active uncertain
+            normal_uncertain = {len(input_variables)}
+                descriptors {" ".join([f"'{var}'" for var in input_variables])}
+                means {" ".join([str(input_means[var]) for var in input_variables])}
+                std_deviations {" ".join([str(input_stds[var]) for var in input_variables])}
+        """
+    dakota_conf += add_responses(output_responses)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+
     return dakota_conf

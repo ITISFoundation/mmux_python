@@ -1,26 +1,35 @@
-## TODO make a test script (rather than standalone)
-## TODO make much more modular (slowly)
-from pathlib import Path
 import pandas as pd
-import shutil
-from utils.funs_data_processing import (
-    get_variable_names,
-    process_input_file,
-)
-from utils.funs_evaluate import create_run_dir
-from utils.funs_evaluate import evaluate_sumo_along_axes
+from pathlib import Path
+from typing import List, Tuple
+from utils.funs_data_processing import get_variable_names
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-################## CONFIG ########################################
-##################################################################
-N_INPUTS = 5 + 6  # EM + Thermal
-N_OUTPUTS = (
-    4  #### Current Shunting
-    + 4 * 3  #### Dosimetry in 3 areas
-    + 3  #### Thermal
-    # + 7  #### Neuro
-)
-##################################################################
+def get_nih_inputs_outputs(TRAINING_FILE: Path) -> Tuple[List[str], List[str]]:
+    ## NIH-in-Silico specific logic
+    var_names = get_variable_names(TRAINING_FILE)
+    input_vars, output_vars = [], []
+    for var in var_names:
+        if (
+            ("Sigma" in var)
+            or ("ThermalConductivity" in var)
+            or ("HeatTransferRate" in var)
+        ):
+            input_vars.append(var)
+            # input_vars.append(nih_label_conversion(var))
+        elif ("Thermal_Peak" in var) or ("Dosimetry" in var) or ("EM_Shunting" in var):
+            output_vars.append(var)
+            # output_vars.append(nih_label_conversion(var))
+        else:
+            logger.warning(
+                f"Variable {var} not recognized as input or output. Ignoring it."
+            )
+            raise ValueError(f"Variable {var} not recognized as input or output.")
+    logger.info(f"input_vars: {input_vars}")
+    logger.info(f"output_vars: {output_vars}")
+    return {"input_vars": input_vars, "output_vars": output_vars}
 
 
 def normalize_nih_results(df: pd.DataFrame):
@@ -104,38 +113,3 @@ def nih_label_conversion(old_label: str) -> str:
         return tissue + "\nElectric Conductivity ($\\sigma$)"
     else:
         raise ValueError("Did not find which label to assign")
-
-
-##################################################################
-
-if __name__ == "__main__":
-    # load (and process) data (inc taking logs)
-    TRAINING_FILE = Path("./data/results_Final_50LHS_TitrationProcessed.csv")
-    run_dir = create_run_dir(Path("."), "evaluate")
-    TRAINING_FILE = Path(shutil.copy(TRAINING_FILE, run_dir))
-    var_names = get_variable_names(TRAINING_FILE)
-    assert len(var_names) == N_INPUTS + N_OUTPUTS, (
-        f"Number of variables in data {len(var_names)} does not coincide with "
-        f"expected number of input variables {N_INPUTS} and output responses {N_OUTPUTS}"
-    )
-    PROCESSED_TRAINING_FILE = process_input_file(
-        TRAINING_FILE, make_log=True, custom_operations=normalize_nih_results
-    )
-    var_names = get_variable_names(PROCESSED_TRAINING_FILE)
-    input_vars = var_names[:N_INPUTS]
-    output_vars = var_names[-N_OUTPUTS:]
-    ### FIXME not able to give only some output vars; would need to
-    # remove them from the (PROCESSED_)TRAINING_FILE as well
-    PROCESSED_TRAINING_FILE = process_input_file(
-        PROCESSED_TRAINING_FILE, columns_to_remove=output_vars[:12]
-    )
-
-    evaluate_sumo_along_axes(
-        run_dir,
-        PROCESSED_TRAINING_FILE,
-        input_vars,
-        output_vars[12:],
-        label_converter=nih_label_conversion,
-    )
-
-    print("DONE")

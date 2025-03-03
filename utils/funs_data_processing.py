@@ -93,6 +93,7 @@ def load_data(
 
 def process_input_file(
     files: str | Path | List[Path],
+    columns_to_keep: Optional[List[str]] = None,
     columns_to_remove: List[str] = ["interface"],
     make_log: Optional[bool | List[str]] = None,
     custom_operations: Optional[Callable] = None,
@@ -116,17 +117,21 @@ def process_input_file(
     df = load_data(files)
     df = _filter_data(df, **kwargs)
 
-    for c in columns_to_remove:
-        if c in df.columns:
-            df.drop(c, axis=1, inplace=True)
-        else:
-            print(f"Column {c} (to be removed) not found in the dataframe")
+    if custom_operations:
+        df: pd.DataFrame = custom_operations(df)
+        
+    if columns_to_keep:
+        columns_to_keep = [c for c in columns_to_keep if c in df.columns]
+        df = df[columns_to_keep]
+    else:
+        for c in columns_to_remove:
+            if c in df.columns:
+                df.drop(c, axis=1, inplace=True)
+            else:
+                print(f"Column {c} (to be removed) not found in the dataframe")
 
     if r"%eval_id" in df.columns:
         df[r"%eval_id"] = np.arange(1, len(df) + 1)
-
-    if custom_operations:
-        df: pd.DataFrame = custom_operations(df)
 
     if make_log:
         log_vars = make_log if isinstance(make_log, list) else df.columns

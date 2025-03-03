@@ -98,3 +98,4 @@ def plot_response_curves(
     savepath = savedir / (output_label + "." + savefmt)
     plt.savefig(savepath, format=savefmt, dpi=300)
     print(f"Figure saved in {savepath}")
+    return savepath

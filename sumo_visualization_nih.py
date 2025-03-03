@@ -13,8 +13,6 @@ from utils.funs_evaluate import evaluate_sumo_along_axes
 
 ################## CONFIG ########################################
 ##################################################################
-TRAINING_FILE = Path("./data/results_Final_50LHS_TitrationProcessed.csv")
-run_dir = create_run_dir(Path("."), "evaluate")
 N_INPUTS = 5 + 6  # EM + Thermal
 N_OUTPUTS = (
     4  #### Current Shunting
@@ -36,8 +34,9 @@ def normalize_nih_results(df: pd.DataFrame):
             "log" not in c
         ), "Log found. The normalization operation assumes variables in linear space."
 
-        if "Thermal_Peak" in c or "Dosimetry" in c or "Shunting" in c:
-            df[c] = df[c] / df["EM_Shunting_Total_Current"]
+        if ("Thermal_Peak" in c) or ("Dosimetry" in c) or ("Shunting" in c):
+            if not (c == "EM_Shunting_Total_Current"):
+                df[c] = df[c] / df["EM_Shunting_Total_Current"]
 
     return df
 
@@ -52,7 +51,7 @@ def nih_label_conversion(old_label: str) -> str:
         return "Shunted Current Outside the Nerve (%)"
 
     # tissues
-    if "Saline" in old_label or "Muscle" in old_label:
+    if "Saline" in old_label or "Muscle" in old_label or "Outside" in old_label:
         tissue = "Muscle "
     elif "Nerve" in old_label:
         tissue = "Nerve "
@@ -109,32 +108,34 @@ def nih_label_conversion(old_label: str) -> str:
 
 ##################################################################
 
+if __name__ == "__main__":
+    # load (and process) data (inc taking logs)
+    TRAINING_FILE = Path("./data/results_Final_50LHS_TitrationProcessed.csv")
+    run_dir = create_run_dir(Path("."), "evaluate")
+    TRAINING_FILE = Path(shutil.copy(TRAINING_FILE, run_dir))
+    var_names = get_variable_names(TRAINING_FILE)
+    assert len(var_names) == N_INPUTS + N_OUTPUTS, (
+        f"Number of variables in data {len(var_names)} does not coincide with "
+        f"expected number of input variables {N_INPUTS} and output responses {N_OUTPUTS}"
+    )
+    PROCESSED_TRAINING_FILE = process_input_file(
+        TRAINING_FILE, make_log=True, custom_operations=normalize_nih_results
+    )
+    var_names = get_variable_names(PROCESSED_TRAINING_FILE)
+    input_vars = var_names[:N_INPUTS]
+    output_vars = var_names[-N_OUTPUTS:]
+    ### FIXME not able to give only some output vars; would need to
+    # remove them from the (PROCESSED_)TRAINING_FILE as well
+    PROCESSED_TRAINING_FILE = process_input_file(
+        PROCESSED_TRAINING_FILE, columns_to_remove=output_vars[:12]
+    )
 
-# load (and process) data (inc taking logs)
-TRAINING_FILE = Path(shutil.copy(TRAINING_FILE, run_dir))
-var_names = get_variable_names(TRAINING_FILE)
-assert len(var_names) == N_INPUTS + N_OUTPUTS, (
-    f"Number of variables in data {len(var_names)} does not coincide with "
-    f"expected number of input variables {N_INPUTS} and output responses {N_OUTPUTS}"
-)
-PROCESSED_TRAINING_FILE = process_input_file(
-    TRAINING_FILE, make_log=True, custom_operations=normalize_nih_results
-)
-var_names = get_variable_names(PROCESSED_TRAINING_FILE)
-input_vars = var_names[:N_INPUTS]
-output_vars = var_names[-N_OUTPUTS:]
-### FIXME not able to give only some output vars; would need to
-# remove them from the (PROCESSED_)TRAINING_FILE as well
-PROCESSED_TRAINING_FILE = process_input_file(
-    PROCESSED_TRAINING_FILE, columns_to_remove=output_vars[:12]
-)
+    evaluate_sumo_along_axes(
+        run_dir,
+        PROCESSED_TRAINING_FILE,
+        input_vars,
+        output_vars[12:],
+        label_converter=nih_label_conversion,
+    )
 
-evaluate_sumo_along_axes(
-    run_dir,
-    PROCESSED_TRAINING_FILE,
-    input_vars,
-    output_vars[12:],
-    label_converter=nih_label_conversion,
-)
-
-print("DONE")
+    print("DONE")

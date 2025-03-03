@@ -8,7 +8,7 @@ from pathlib import Path
 import dakota.environment as dakenv
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.DEBUG)
+logging.basicConfig(filename="dakota-object.log", encoding="utf-8", level=logging.DEBUG)
 
 
 @contextlib.contextmanager

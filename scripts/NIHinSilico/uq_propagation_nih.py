@@ -79,6 +79,5 @@ if __name__ == "__main__":
         stds,
         make_log,
         xscale="linear",
-        yscale="linear",
         label_converter=LABEL_CONVERSION_FUNCTION,
     )

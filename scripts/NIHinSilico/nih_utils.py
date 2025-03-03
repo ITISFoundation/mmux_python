@@ -112,7 +112,7 @@ def nih_label_conversion(old_label: str) -> str:
         return (
             tissue + "\nBlood Perfusion ($\\omega$)"
         )  ## TODO double check in report - and add symbol? :)
-    elif "Sigma":
+    elif "Sigma" in old_label:
         return tissue + "\nElectric Conductivity ($\\sigma$)"
     else:
         raise ValueError("Did not find which label to assign")

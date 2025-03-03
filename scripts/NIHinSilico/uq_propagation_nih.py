@@ -8,13 +8,9 @@ import matplotlib.pyplot as plt
 sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from utils.dakota_object import DakotaObject
-from utils.funs_create_dakota_conf import create_uq_propagation
-from utils.funs_data_processing import (
-    process_input_file,
-    get_results,
-)
-from utils.funs_evaluate import create_run_dir
+
+from utils.funs_data_processing import process_input_file
+from utils.funs_evaluate import create_run_dir, propagate_uq
 from NIHinSilico.nih_utils import (
     normalize_nih_results,
     get_nih_inputs_outputs,
@@ -36,7 +32,7 @@ if __name__ == "__main__":
     PROCESSED_TRAINING_FILE = process_input_file(
         TRAINING_FILE,
         make_log=make_log,
-        custom_operations=normalize_nih_results,
+        custom_operations=NORMALIZING_FUNCTION,
         columns_to_keep=input_vars + [output_response],
     )
 
@@ -74,31 +70,15 @@ if __name__ == "__main__":
         means = {f"log_{key}": np.log(val) for key, val in means.items()}
         stds = {f"log_{key}": np.log(val) for key, val in stds.items()}
 
-    # create dakota file
-    dakota_conf = create_uq_propagation(
-        build_file=PROCESSED_TRAINING_FILE,
-        input_variables=input_vars,
-        input_means=means,
-        input_stds=stds,
-        output_responses=[output_response],
+    savepath = propagate_uq(
+        PROCESSED_TRAINING_FILE,
+        run_dir,
+        input_vars,
+        output_response,
+        means,
+        stds,
+        make_log,
+        xscale="linear",
+        yscale="linear",
+        label_converter=LABEL_CONVERSION_FUNCTION,
     )
-
-    # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
-    dakobj.run(dakota_conf, run_dir)
-
-    ## TODO extract results from "predictions.dat" file and plot histogram (just one variable)
-    fig, ax = plt.subplots()
-    x = get_results(run_dir / f"predictions.dat", output_response)
-    if make_log:
-        x = np.exp(x)
-    ax.hist(x, bins=50, density=False)
-    ax.set_xlabel(LABEL_CONVERSION_FUNCTION(output_response))
-    savefmt: str = "png"
-    savepath = run_dir / (output_response + "." + savefmt)
-    plt.savefig(savepath, format=savefmt, dpi=300)
-    print(f"Figure saved in {savepath}")
-    assert savepath is not None
-    assert savepath.exists(), f"Plotting failed, savepath {savepath} does not exist"

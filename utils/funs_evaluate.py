@@ -13,6 +13,7 @@ from utils.funs_data_processing import (
     get_results,
 )
 
+
 def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
     ## part 1 - setup
     main_runs_dir = script_dir / "runs"
@@ -75,10 +76,11 @@ def evaluate_sumo_along_axes(
         plotting_yscale=yscale,
         label_converter=label_converter,
     )
-        
+
     assert savepath is not None
     assert savepath.exists(), f"Plotting failed, savepath {savepath} does not exist"
-    return savepath 
+    return savepath
+
 
 def propagate_uq(
     PROCESSED_TRAINING_FILE: Path,
@@ -87,11 +89,10 @@ def propagate_uq(
     output_response: str,
     means: Dict[str, float],
     stds: Dict[str, float],
-    make_log: bool = False,
     xscale: Literal["linear", "log"] = "linear",
     label_converter: Optional[Callable] = None,
 ):
-    
+
     # create dakota file
     dakota_conf = create_uq_propagation(
         build_file=PROCESSED_TRAINING_FILE,
@@ -107,12 +108,15 @@ def propagate_uq(
     )  # no need to evaluate any function (only the SuMo, internal to Dakota)
     dakobj.run(dakota_conf, run_dir)
     x = get_results(run_dir / f"predictions.dat", output_response)
-    if make_log:
-        x = np.exp(x)
-    savepath = plot_uq_histogram(x, output_response, savedir=run_dir, plotting_xscale=xscale, label_converter=label_converter)
-    
-    return savepath
+    savepath = plot_uq_histogram(
+        x,
+        output_response,
+        savedir=run_dir,
+        plotting_xscale=xscale,
+        label_converter=label_converter,
+    )
 
+    return savepath
 
 
 if __name__ == "__main__":

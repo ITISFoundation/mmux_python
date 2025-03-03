@@ -21,7 +21,7 @@ NORMALIZING_FUNCTION: Callable = normalize_nih_results
 LABEL_CONVERSION_FUNCTION: Callable = nih_label_conversion
 
 ## FOR NOW, JUST MAKE WORK, and GET PLOT w NormT for REPORT
-make_log = True
+make_log = True  ## False seems to be off (bcs multiplicative stds??)
 if __name__ == "__main__":
     TRAINING_FILE = Path("./data/results_Final_50LHS_TitrationProcessed.csv")
     run_dir = create_run_dir(Path("."), "uq")
@@ -77,7 +77,6 @@ if __name__ == "__main__":
         output_response,
         means,
         stds,
-        make_log,
         xscale="linear",
         label_converter=LABEL_CONVERSION_FUNCTION,
     )

@@ -21,7 +21,7 @@ NORMALIZING_FUNCTION: Callable = normalize_nih_results
 LABEL_CONVERSION_FUNCTION: Callable = nih_label_conversion
 
 ## FOR NOW, JUST MAKE WORK, and GET PLOT w NormT for REPORT
-make_log = True  ## False seems to be off (bcs multiplicative stds??)
+MAKE_LOG = True  ## False seems to be off (bcs multiplicative stds??)
 if __name__ == "__main__":
     TRAINING_FILE = Path("./data/results_Final_50LHS_TitrationProcessed.csv")
     run_dir = create_run_dir(Path("."), "uq")
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     output_response = output_vars[-3]  ## FIXME just for now
     PROCESSED_TRAINING_FILE = process_input_file(
         TRAINING_FILE,
-        make_log=make_log,
+        make_log=MAKE_LOG,
         custom_operations=NORMALIZING_FUNCTION,
         columns_to_keep=input_vars + [output_response],
     )
@@ -64,15 +64,15 @@ if __name__ == "__main__":
     }
 
     ## refactor as a function - it is pretty general, just need to pass in the means & stds
-    if make_log:  # FIXME for now log applies to all inputs & the output
+    if MAKE_LOG:  # FIXME for now log applies to all inputs & the output
         input_vars = [f"log_{var}" for var in input_vars]
         output_response = f"log_{output_response}"
         means = {f"log_{key}": np.log(val) for key, val in means.items()}
         stds = {f"log_{key}": np.log(val) for key, val in stds.items()}
 
     savepath = propagate_uq(
-        PROCESSED_TRAINING_FILE,
         run_dir,
+        PROCESSED_TRAINING_FILE,
         input_vars,
         output_response,
         means,

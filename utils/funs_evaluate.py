@@ -3,10 +3,12 @@ import datetime
 import os
 import pandas as pd
 import numpy as np
+import shutil
 from typing import List, Literal, Optional, Callable, Dict
 from utils.dakota_object import DakotaObject
 from utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation
 from utils.funs_plotting import plot_response_curves, plot_uq_histogram
+import json
 from utils.funs_data_processing import (
     create_samples_along_axes,
     extract_predictions_along_axes,
@@ -29,8 +31,9 @@ def evaluate_sumo_along_axes(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
     input_vars: List[str],
-    ## TODO be able to load / query SuMo directly; or simply be able to do on any function (although prob better as separate function, that)
     response_var: str,
+    sumo_import_name: Optional[str] = None,
+    sumo_export_name: Optional[str] = None,
     NSAMPLESPERVAR: int = 21,
     xscale: Literal["linear", "log"] = "linear",
     yscale: Literal["linear", "log"] = "linear",
@@ -49,10 +52,20 @@ def evaluate_sumo_along_axes(
         run_dir, data, input_vars, NSAMPLESPERVAR
     )
 
+    if sumo_import_name:
+        models_dir = run_dir.parent / "models"
+        assert (
+            models_dir.exists()
+        ), f"Models dir {models_dir} does not exist, but SuMo import is trying to copy files there"
+        for file in models_dir.glob(f"{sumo_import_name}*"):
+            shutil.copy(file, run_dir)
+
     # create dakota file
     dakota_conf = create_sumo_evaluation(
         build_file=PROCESSED_TRAINING_FILE,
-        ### TODO be able to save & load surrogate models (start w GP) rather than create them every time
+        sumo_import_name=sumo_import_name,
+        sumo_export_name=sumo_export_name,
+        ### TODO once this works, try to get it to work wo evaluation (or just one sample, if not possible?)
         samples_file=PROCESSED_SWEEP_INPUT_FILE,
         input_variables=input_vars,
         output_responses=[response_var],
@@ -63,6 +76,17 @@ def evaluate_sumo_along_axes(
         map_object=None
     )  # no need to evaluate any function (only the SuMo, internal to Dakota)
     dakobj.run(dakota_conf, run_dir)
+
+    if sumo_export_name:
+        models_dir = run_dir.parent / "models"
+        os.makedirs(models_dir, exist_ok=True)
+        for file in run_dir.glob(f"{sumo_export_name}*"):
+            shutil.copy(file, models_dir)
+            # Also save input and output variables to a JSON file
+            json_data = {"input_vars": input_vars, "output_var": response_var}
+            json_save_path = models_dir / f"{file.name}.json"
+            with open(json_save_path, "w") as json_file:
+                json.dump(json_data, json_file, indent=4)
 
     results = extract_predictions_along_axes(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
@@ -83,8 +107,8 @@ def evaluate_sumo_along_axes(
 
 
 def propagate_uq(
-    PROCESSED_TRAINING_FILE: Path,
     run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
     input_vars: List[str],
     output_response: str,
     means: Dict[str, float],

@@ -49,6 +49,7 @@ def plot_response_curves(
         )
 
     plt.suptitle(ylabel, fontsize=20)
+    plt.tight_layout()
 
     if savedir is None:
         savedir = Path(".")

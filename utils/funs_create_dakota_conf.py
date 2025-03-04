@@ -123,6 +123,9 @@ def add_responses(descriptors: List[str]) -> str:
 def add_surrogate_model(
     id_model: str = "SURR_MODEL",
     surrogate_type: str = "gaussian_process surfpack",
+    sumo_import_name: Optional[str] = None,
+    sumo_export_name: Optional[str] = None,
+    export_import_format: str = "text_archive",
     training_samples_file: Optional[str] = None,
     id_sampling_method: Optional[str] = None,
     cross_validation_folds: Optional[int] = None,
@@ -132,11 +135,27 @@ def add_surrogate_model(
             id_model '{id_model}'
             surrogate global
                 {surrogate_type}
-                {"" if not cross_validation_folds
-                else f'''
+        """
+
+    if sumo_import_name:
+        conf += f"""
+                import_model {export_import_format} filename_prefix='{sumo_import_name}'
+        """
+        # When importing a surrogate model, it is crucial that the global surrogate model part
+        # of the Dakota input file be identical for export and import,
+        # except for changing export_model and its child keywords to those needed for import_model.
+        # Any other keywords such as specifying a dace_iterator or imported points
+        # must remain intact to satisfy internal surrogate constructor requirements.
+    else:
+        if sumo_export_name:
+            conf += f"""
+                    export_model filename_prefix='{sumo_export_name}' formats={export_import_format}
+            """
+
+    if cross_validation_folds:
+        conf += f"""
                 cross_validation folds = {cross_validation_folds}
                 metrics = "root_mean_squared" "sum_abs" "mean_abs" "max_abs" "rsquared"
-                '''}
         """
 
     if training_samples_file is None:
@@ -155,23 +174,24 @@ def add_surrogate_model(
                     '{training_samples_file}'
                     custom_annotated header use_variable_labels {'eval_id' if 'processed' not in training_samples_file else ''}"""
 
+        ### DONT KNOW HOW TO USE THIS YET
+        # if id_truth_model is None:
+        #     print(
+        #         "No truth model to evaluate samples provided for the surrogate model "
+        #         "- it must then be provided within the sampling method"
+        #     )
+        #     assert (
+        #         id_sampling_method is not None
+        #     ), "id_sampling must be provided if no truth model is provided"
+
+        #             {f"truth_model_pointer =  '{id_truth_model}' "
+        #             if id_truth_model is not None else
+        #             f"dace_method_pointer = '{id_sampling_method}'"}
+
     conf += f"""
                 export_approx_points_file "predictions.dat"
                 {'export_approx_variance_file "variances.dat"' if "gaussian_process" in surrogate_type else ""}
         """
-    ### DONT KNOW HOW TO USE THIS YET
-    # if id_truth_model is None:
-    #     print(
-    #         "No truth model to evaluate samples provided for the surrogate model "
-    #         "- it must then be provided within the sampling method"
-    #     )
-    #     assert (
-    #         id_sampling_method is not None
-    #     ), "id_sampling must be provided if no truth model is provided"
-
-    #             {f"truth_model_pointer =  '{id_truth_model}' "
-    #             if id_truth_model is not None else
-    #             f"dace_method_pointer = '{id_sampling_method}'"}
 
     return conf
 
@@ -362,14 +382,35 @@ def create_sumo_evaluation(
     input_variables: List[str],
     output_responses: List[str],
     dakota_conf_file: Optional[str | Path] = None,
+    sumo_import_name: Optional[str] = None,
+    sumo_export_name: Optional[str] = None,
 ) -> str:
     dakota_conf = start_dakota_file()
-    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_surrogate_model(
+        training_samples_file=str(build_file.resolve()),
+        sumo_export_name=sumo_export_name,
+        sumo_import_name=sumo_import_name,
+    )
     dakota_conf += add_evaluation_method(str(samples_file.resolve()))
     dakota_conf += add_continuous_variables(variables=input_variables)
     dakota_conf += add_responses(output_responses)
     # dakota_conf += add_python_interface() ## no need to run anything outside dakota!
 
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf
+
+
+def create_export_sumo(
+    build_file: Path,
+    input_variables: List[str],
+    output_responses: List[str],
+    dakota_conf_file: Optional[str | Path] = None,
+) -> str:
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_continuous_variables(variables=input_variables)
+    dakota_conf += add_responses(output_responses)
     if dakota_conf_file:
         write_to_file(dakota_conf, dakota_conf_file)
     return dakota_conf

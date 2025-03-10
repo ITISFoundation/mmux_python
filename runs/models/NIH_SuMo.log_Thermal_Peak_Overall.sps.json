@@ -1,0 +1,16 @@
+{
+    "input_vars": [
+        "log_SigmaMuscle",
+        "log_SigmaEpineurium",
+        "log_SigmaPerineurium",
+        "log_SigmaAlongFascicles",
+        "log_SigmaTransverseFascicles",
+        "log_ThermalConductivity_Fascicles",
+        "log_HeatTransferRate_Fascicles",
+        "log_ThermalConductivity_Saline",
+        "log_HeatTransferRate_Saline",
+        "log_ThermalConductivity_Connective_Tissue",
+        "log_HeatTransferRate_Connective_Tissue"
+    ],
+    "output_var": "log_Thermal_Peak_Overall"
+}

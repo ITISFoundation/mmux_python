@@ -198,8 +198,10 @@ def add_sampling_method(
     model_pointer: Optional[str] = None,
     num_samples: int = 10,
     seed: int = 1234,
+    refinement: bool = False,
+    refinement_samples: Optional[int] = None,
 ) -> str:
-    return f"""
+    conf = f"""
         method
             id_method = '{id_method}'
             sample_type
@@ -209,6 +211,20 @@ def add_sampling_method(
                 {f'seed = {seed}' if seed is not None else ""}
             {f'model_pointer = "{model_pointer}"' if model_pointer is not None else ""}
         """
+
+    if refinement:
+        assert sampling_method == "lhs", "Refinement only available for LHS"
+        assert (
+            refinement_samples == num_samples
+        ), "Refinement samples must be equal to num_samples. Multiple-step refinement not yet implemented"
+        conf += f"""
+            refinement_samples = {refinement_samples}
+        """
+        print(
+            "WARNING: to use refinement, make sure you provide reset files as input for Dakota"
+        )
+
+    return conf
 
 
 def add_evaluation_method(

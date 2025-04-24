@@ -8,3 +8,5 @@ scipy
 matplotlib
 seaborn
 itis-dakota
+flask
+flask-cors

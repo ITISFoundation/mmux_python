@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Optional
 import numpy as np
 import logging
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -24,8 +25,11 @@ from utils.funs_evaluate import evaluate_sumo_along_axes, propagate_uq
 from flask import Flask, request  # type: ignore
 
 app = Flask(__name__)
-base_dir = Path("/home/ordonez/mmux/mmux_react/flaskapi")
-
+base_dir = Path("/home/ordonez/mmux/mmux_vite/flaskapi")
+from flask_cors import CORS, cross_origin
+app = Flask(__name__)
+cors = CORS(app) # allow CORS for all domains on all routes.
+app.config['CORS_HEADERS'] = 'Content-Type'
 #########################################################################
 #########################################################################
 ## NIH-in-Silico specific logic -- ideally, we would eventually remove it, have agnostic
@@ -43,6 +47,7 @@ LABEL_CONVERSION_FUNCTION: Callable = nih_label_conversion
 ## custom functionality while the FunctionsAPI is not yet available
 # ideally we would register that function; and available datapoints as an existing JobCollection
 @app.route("/flask/get_nih_inputs_outputs")
+@cross_origin()
 def flask_get_nih_inputs_outputs() -> Dict[str, List[str]]:
     logger.info("Starting flask function: flask_get_nih_inputs_outputs")
     logger.info("Cwd: " + str(Path.cwd()))
@@ -59,6 +64,36 @@ def flask_get_nih_inputs_outputs() -> Dict[str, List[str]]:
     logger.info(f"output_vars: {output_vars}")
     return {"input_vars": input_vars, "output_vars": output_vars}
 
+@app.route("/flask/retrieve_csv_result")
+def retrieve_csv_result(
+    csv_file_path: str, inputs: Dict[str, float], outputs: Optional[List[str]] = None
+) -> Dict[str, float]:
+    """
+    Retrieve the result from a csv file.
+    """
+
+    df = pd.read_csv(csv_file_path)
+
+    for col in inputs.keys():
+        if col not in df.columns:
+            raise ValueError(
+                f"Input {col} not in the csv file. Columns are: {df.columns.values}"
+            )
+            
+    if outputs is not None:
+        for col in outputs:
+            if col not in df.columns:
+                raise ValueError(
+                    f"Output {col} not in the csv file. Columns are: {df.columns.values}"
+                )
+        result = df.loc[np.all(df[inputs.keys()] == inputs.values(), axis=1), outputs]
+    else:
+        result = df.loc[np.all(df[inputs.keys()] == inputs.values(), axis=1)]
+    # Check if the result is empty or has multiple rows
+    assert len(result) != 0, f"No result found for inputs {inputs}."
+    assert len(result) == 1, f"Multiple results found for inputs {inputs}."
+
+    return result.iloc[0].to_dict()
 
 #########################################################################
 #########################################################################

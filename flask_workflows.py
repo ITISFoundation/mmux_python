@@ -22,13 +22,13 @@ from utils.funs_data_processing import (
 )
 from utils.funs_evaluate import create_run_dir
 from utils.funs_evaluate import evaluate_sumo_along_axes, propagate_uq
-from flask import Flask, request  # type: ignore
+from flask import Flask, request, jsonify  # type: ignore
 
 app = Flask(__name__)
 base_dir = Path("/home/ordonez/mmux/mmux_vite/flaskapi")
 from flask_cors import CORS, cross_origin
 app = Flask(__name__)
-cors = CORS(app) # allow CORS for all domains on all routes.
+cors = CORS(app, origins=["*"], methods=["*"], allow_headers=["*"], resources=["*"]) # allow CORS for all domains on all routes.
 app.config['CORS_HEADERS'] = 'Content-Type'
 #########################################################################
 #########################################################################
@@ -39,6 +39,7 @@ from scripts.NIHinSilico.sumo_visualization_nih import (
     normalize_nih_results,
 )
 from scripts.NIHinSilico.nih_utils import get_nih_inputs_outputs
+import json
 
 NORMALIZING_FUNCTION: Callable = normalize_nih_results
 LABEL_CONVERSION_FUNCTION: Callable = nih_label_conversion
@@ -102,7 +103,7 @@ def retrieve_csv_result(
 def _save_in_react_public_folder(savepath: Path):
     # Copy the image to the react public folder
     logger.info(f"savepath: {savepath}")
-    react_folder = Path("/home/ordonez/mmux/mmux_react/public/results")
+    react_folder = Path("/home/ordonez/mmux/mmux_vite/public/results")
     if react_folder.exists():
         logger.info(f"React folder exists at {react_folder}")
     else:
@@ -127,47 +128,59 @@ def _save_in_react_public_folder(savepath: Path):
     return {"imagePath": savepath.name}
 
 
-@app.route("/flask/sumo_along_axes")
+@app.route("/flask/sumo_along_axes", methods=["POST"])
 def flask_evaluate_sumo_along_axes() -> Dict[str, str]:
     os.chdir(Path(__file__).parent)
     logger.info("Starting flask function: flask_evaluate_sumo_along_axes")
     logger.info("Cwd: " + str(Path.cwd()))
-    logger.info("Inputs of the request: ", request.args)
-    training_file = request.args.get("filename")
-    output_response = request.args.get("output")
-    input_vars = request.args.get("inputs").split(",")
-    make_log = False if request.args.get("log").lower() == "false" else True
-    logger.info(f"training_file: {training_file}")
-    logger.info(f"output_response: {output_response}")
-    logger.info(f"input_vars: {input_vars}")
-    logger.info(
-        f"make_log: {make_log} (input {request.args.get('log')}) type: {type(make_log)}"
-    )
-    TRAINING_FILE = base_dir / "mmux_python" / "data" / training_file
-    logger.info(f"TRAINING_FILE: {TRAINING_FILE} does exist: {TRAINING_FILE.exists()}")
+    logger.info("Request data: ", request.data)
+    
+    # Convert request data into a Python dictionary
+    request_data: dict = json.loads(request.data.decode("utf-8"))
+    logger.info(f"Parsed request data: {request_data}")
+    output_response = request_data.get("output")
+    input_vars: List[str] = request_data["inputs"]
+    make_log = request_data.get("log", False)
+    jobs = request_data["FunctionJobs"]
+    completed_jobs = [job for job in jobs if job["status"].lower() == "completed"]
+    logger.info(f"N Completed jobs: {len(completed_jobs)}")
+    def get_job_dict(job):
+        d = {key: job["inputs"][key] for key in input_vars}
+        d[output_response] = job["outputs"][output_response] # type: ignore
+        return d
+    df_jobs = pd.DataFrame(
+            [get_job_dict(job) for job in completed_jobs]
+        )
+    # TODO make logs, other processing, etc
+    logger.info(f"df_jobs: {df_jobs}")
     run_dir = create_run_dir(Path("."), "evaluate")
-    TRAINING_FILE = Path(shutil.copy(TRAINING_FILE, run_dir))
+    TRAINING_FILE = run_dir/  "df_jobs.csv"
+    df_jobs.to_csv(TRAINING_FILE, index=False)
 
     PROCESSED_TRAINING_FILE = process_input_file(
         TRAINING_FILE,
         make_log=make_log,
-        columns_to_keep=input_vars + [output_response],
+        columns_to_keep=input_vars + [output_response], # type: ignore
         custom_operations=NORMALIZING_FUNCTION,
     )
     if make_log:  # FIXME for now log applies to all inputs & the output
         input_vars = [f"log_{var}" for var in input_vars]
         output_response = f"log_{output_response}"
 
-    savepath = evaluate_sumo_along_axes(
+    results = evaluate_sumo_along_axes(
         run_dir,
         PROCESSED_TRAINING_FILE,
         input_vars,
-        output_response,
+        output_response, # type: ignore
         label_converter=LABEL_CONVERSION_FUNCTION,
     )
     # Copy the image to the react public folder
-    _save_in_react_public_folder(savepath)
-    return {"imagePath": savepath.name}
+    # _save_in_react_public_folder(savepath)
+    # return {"imagePath": savepath.name}
+    logger.info("Done!!")
+    # return {"imagePath": "r"}
+    print(results)
+    return jsonify(results) # check if jsonify is needed
 
 
 @app.route("/flask/uq_propagation")

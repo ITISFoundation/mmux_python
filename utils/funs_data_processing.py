@@ -255,12 +255,12 @@ def extract_predictions_along_axes(
     for i, variable in enumerate(input_vars):
         x = get_results(run_dir / "predictions.dat", variable)
         results[variable] = {
-            "x": x[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR],
-            "y_hat": y_hat[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR],
+            "x": list(x[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR]),
+            "y_hat": list(y_hat[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR]),
         }
         if (run_dir / "variances.dat").is_file():
             results[variable].update(
-                {"std_hat": std_hat[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR]}
+                {"std_hat": list(std_hat[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR])}
             )
 
     return results

@@ -91,19 +91,20 @@ def evaluate_sumo_along_axes(
     results = extract_predictions_along_axes(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
     )
-    savepath = plot_response_curves(
-        results,
-        response_var,
-        input_vars,
-        savedir=run_dir,
-        plotting_xscale=xscale,
-        plotting_yscale=yscale,
-        label_converter=label_converter,
-    )
+    # savepath = plot_response_curves(
+    #     results,
+    #     response_var,
+    #     input_vars,
+    #     savedir=run_dir,
+    #     plotting_xscale=xscale,
+    #     plotting_yscale=yscale,
+    #     label_converter=label_converter,
+    # )
 
-    assert savepath is not None
-    assert savepath.exists(), f"Plotting failed, savepath {savepath} does not exist"
-    return savepath
+    # assert savepath is not None
+    # assert savepath.exists(), f"Plotting failed, savepath {savepath} does not exist"
+    # return savepath
+    return results
 
 
 def propagate_uq(

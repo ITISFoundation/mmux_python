@@ -133,11 +133,9 @@ def flask_evaluate_sumo_along_axes() -> Dict[str, str]:
     os.chdir(Path(__file__).parent)
     logger.info("Starting flask function: flask_evaluate_sumo_along_axes")
     logger.info("Cwd: " + str(Path.cwd()))
-    logger.info("Request data: ", request.data)
-    
+
     # Convert request data into a Python dictionary
     request_data: dict = json.loads(request.data.decode("utf-8"))
-    logger.info(f"Parsed request data: {request_data}")
     output_response = request_data.get("output")
     input_vars: List[str] = request_data["inputs"]
     make_log = request_data.get("log", False)
@@ -146,13 +144,14 @@ def flask_evaluate_sumo_along_axes() -> Dict[str, str]:
     logger.info(f"N Completed jobs: {len(completed_jobs)}")
     def get_job_dict(job):
         d = {key: job["inputs"][key] for key in input_vars}
+        assert "outputs" in job.keys(), f"Outputs not in job: {job}"
+        assert output_response in job["outputs"].keys(), f"Output {output_response} not in job: {job}"
         d[output_response] = job["outputs"][output_response] # type: ignore
         return d
     df_jobs = pd.DataFrame(
             [get_job_dict(job) for job in completed_jobs]
         )
     # TODO make logs, other processing, etc
-    logger.info(f"df_jobs: {df_jobs}")
     run_dir = create_run_dir(Path("."), "evaluate")
     TRAINING_FILE = run_dir/  "df_jobs.csv"
     df_jobs.to_csv(TRAINING_FILE, index=False)
@@ -174,12 +173,7 @@ def flask_evaluate_sumo_along_axes() -> Dict[str, str]:
         output_response, # type: ignore
         label_converter=LABEL_CONVERSION_FUNCTION,
     )
-    # Copy the image to the react public folder
-    # _save_in_react_public_folder(savepath)
-    # return {"imagePath": savepath.name}
     logger.info("Done!!")
-    # return {"imagePath": "r"}
-    print(results)
     return jsonify(results) # check if jsonify is needed
 
 

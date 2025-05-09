@@ -4,12 +4,13 @@ import os
 import pandas as pd
 import numpy as np
 import shutil
-from typing import List, Literal, Optional, Callable, Dict
-from utils.dakota_object import DakotaObject
-from utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation
-from utils.funs_plotting import plot_response_curves, plot_uq_histogram
 import json
-from utils.funs_data_processing import (
+from typing import List, Literal, Optional, Callable, Dict
+
+from mmux_python.utils.dakota_object import DakotaObject
+from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation
+from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram
+from mmux_python.utils.funs_data_processing import (
     create_samples_along_axes,
     extract_predictions_along_axes,
     get_results,
@@ -26,6 +27,36 @@ def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
     print("temp_dir: ", temp_dir)
     return temp_dir
 
+def retrieve_csv_result(
+    csv_file_path: str, inputs: Dict[str, float], outputs: Optional[List[str]] = None
+) -> Dict[str, float]:
+    """
+    Retrieve the result from a csv file.
+    """
+
+    df = pd.read_csv(csv_file_path)
+
+    for col in inputs.keys():
+        if col not in df.columns:
+            raise ValueError(
+                f"Input {col} not in the csv file. Columns are: {df.columns.values}"
+            )
+            
+    if outputs is not None:
+        for col in outputs:
+            if col not in df.columns:
+                raise ValueError(
+                    f"Output {col} not in the csv file. Columns are: {df.columns.values}"
+                )
+        result = df.loc[np.all(df[inputs.keys()] == inputs.values(), axis=1), outputs]
+    else:
+        result = df.loc[np.all(df[inputs.keys()] == inputs.values(), axis=1)]
+    # Check if the result is empty or has multiple rows
+    assert len(result) != 0, f"No result found for inputs {inputs}."
+    assert len(result) == 1, f"Multiple results found for inputs {inputs}."
+
+    return result.iloc[0].to_dict()
+
 
 def evaluate_sumo_along_axes(
     run_dir: Path,
@@ -38,7 +69,8 @@ def evaluate_sumo_along_axes(
     xscale: Literal["linear", "log"] = "linear",
     yscale: Literal["linear", "log"] = "linear",
     label_converter: Optional[Callable] = None,
-) -> Path:
+    MAKEPLOT: bool = False,
+) -> Dict[str, Dict[str, np.ndarray]]:
     """Given a training data to create a SuMo, generate it, and plot the profile along the central axes
     (e.g. all variables but the sweeped one will be set to its central value).
     No callback is necessary (everything internal to Dakota).
@@ -91,22 +123,21 @@ def evaluate_sumo_along_axes(
     results = extract_predictions_along_axes(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
     )
-    # savepath = plot_response_curves(
-    #     results,
-    #     response_var,
-    #     input_vars,
-    #     savedir=run_dir,
-    #     plotting_xscale=xscale,
-    #     plotting_yscale=yscale,
-    #     label_converter=label_converter,
-    # )
 
-    # assert savepath is not None
-    # assert savepath.exists(), f"Plotting failed, savepath {savepath} does not exist"
-    # return savepath
+    if MAKEPLOT:
+        plot_response_curves(
+            results,
+            response_var,
+            input_vars,
+            savedir=run_dir,
+            plotting_xscale=xscale,
+            plotting_yscale=yscale,
+            label_converter=label_converter,
+        )
+
     return results
 
-
+### TODO refactor in new MMUX-compatible version (like above)
 def propagate_uq(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,

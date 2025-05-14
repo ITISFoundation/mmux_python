@@ -13,7 +13,7 @@ from utils.funs_data_processing import load_data, get_non_dominated_indices
 from utils.dakota_object import DakotaObject, Map
 from utils.funs_plotting import plot_objective_space, plot_optimization_evolution
 
-MAXAMP = 5.0
+MAXAMP = 7.50
 N_RUNNERS = 10
 
 ########################################################################################
@@ -64,9 +64,9 @@ dakota_conf = create_optimization_moga(
     moga_kwargs={
         "max_function_evaluations": 1e4,
         ## hyperparams below created well distributed front in SCS example. Let's try.
-        "population_size": 50,
+        "population_size": 100,
         "max_iterations": 1000,
-        "radial_distances": [0.0, 0.01, 0.01, 0.01],
+        "radial_distances": [0.01, 0.0, 0.01, 0.01],
         "seed": 42,
     },
     batch_mode=True,
@@ -76,7 +76,7 @@ dakota_conf = create_optimization_moga(
 
 # run/retrieve Dakota sampling file
 map = Map(
-    model=MinimizationModel(model, ["none", "max", "min", "min"]).run,
+    model=MinimizationModel(model, ["max", "none", "min", "min"]).run,
     n_runners=N_RUNNERS,
 )
 dakobj = DakotaObject(map)
@@ -97,17 +97,18 @@ try:
             print("Generating plot with current Dakota optimization results...")
             results_df = load_data(run_dir / "results.dat")
             results_df = postpro_spinal_samples(results_df)
-            results_df["FSI"] = -results_df["FSI"]
+            results_df["Activation (%)"] = -results_df["Activation (%)"]
+
             plot_optimization_evolution(
                 results_df,
-                ["FSI", "Energy", "Maximum Amplitude"],
+                ["Activation (%)", "Energy", "Maximum Amplitude"],
                 savepath=savepath,
             )
             plot_objective_space(
                 results_df,
                 non_dominated_indices=list(results_df[-100:].index.values),
                 xvar="Energy",
-                yvar="FSI",
+                yvar="Activation (%)",
                 # hvar="%eval_id",
                 ylim=(0, 1),
                 title="Running Optimization - Objective Space",
@@ -126,19 +127,19 @@ results_df = load_data(run_dir / "results.dat")
 results_df = postpro_spinal_samples(results_df)
 non_dominated_indices = get_non_dominated_indices(
     results_df,
-    optimized_vars=["Energy", "FSI"],
+    optimized_vars=["Energy", "Activation (%)"],
     sort_by_column="Energy",
 )
-results_df["FSI"] = -results_df["FSI"]
+results_df["Activation (%)"] = -results_df["Activation (%)"]
 plot_objective_space(
     results_df,
     non_dominated_indices=non_dominated_indices,
     xvar="Energy",
-    yvar="FSI",
+    yvar="Activation (%)",
     hvar="%eval_id",
     ylim=(0, 1),
     xlabel="Relative Energy (au)",
-    ylabel="FSI",
+    ylabel="Activation (%)",
     title="Sampled Objective Space",
     facecolors="none",
     savedir=run_dir,

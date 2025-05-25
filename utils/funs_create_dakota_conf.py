@@ -446,3 +446,34 @@ def create_uq_propagation(
         write_to_file(dakota_conf, dakota_conf_file)
 
     return dakota_conf
+
+def create_sumo_crossvalidation(
+    build_file: Path,
+    input_variables: List[str],
+    output_responses: List[str],
+    dakota_conf_file: Optional[str | Path] = None,
+    N_CROSS_VALIDATION = 5
+):
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(
+        training_samples_file = str(build_file.resolve()),
+        cross_validation_folds=N_CROSS_VALIDATION,
+    )
+    from funs_data_processing import process_input_file
+    JUST_INPUTS_FILE = process_input_file(
+        build_file,
+        columns_to_remove=output_responses,
+    )
+    dakota_conf += add_evaluation_method(
+        str(JUST_INPUTS_FILE.resolve()),
+        includes_eval_id=False,  ## just to have some method, otherwise Dakota gives error
+    )
+    dakota_conf += add_continuous_variables(
+        variables=input_variables,
+    )
+    dakota_conf += add_responses(output_responses)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+
+    return dakota_conf

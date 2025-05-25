@@ -8,7 +8,7 @@ import json
 from typing import List, Literal, Optional, Callable, Dict
 
 from mmux_python.utils.dakota_object import DakotaObject
-from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation
+from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation
 from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram
 from mmux_python.utils.funs_data_processing import (
     create_samples_along_axes,
@@ -174,6 +174,72 @@ def propagate_uq(
 
     return savepath
 
+def _parse_crossvalidation_outputlogs(log_output: str, N_CROSS_VALIDATION: int):
+    import re
+
+    variable_name_pattern = (
+        f"Surrogate quality metrics \({N_CROSS_VALIDATION}-fold CV\) for (\w+):"
+    )
+    metrics_pattern = r"\s+(root_mean_squared|sum_abs|mean_abs|max_abs)\s+([\d.e+-]+|nan)"
+
+
+    # Find all occurrences of variable names in the log
+    variables = re.findall(variable_name_pattern, log_output)
+
+    # Split the log output by the variable name to handle each output separately
+    log_parts = re.split(variable_name_pattern, log_output)
+    log_parts = log_parts[1:]  # Skip the first part (before the first variable name)
+
+    # Dictionary to hold the parsed results for each output variable
+    parsed_error_metrics = {}
+
+    # Loop through the log parts, and extract metrics for each output variable
+    for i, variable in enumerate(variables):
+        # The log part after each variable name contains the metrics section for that variable
+        metrics_section = log_parts[
+            2 * i + 1
+        ]  # The log part immediately after the variable name
+
+        ## remove the training error of the next variable
+        metrics_section = metrics_section.split("build (training) points")[0]
+
+        # Find all the surrogate quality metrics for this particular output variable
+        metrics_matches = re.findall(metrics_pattern, metrics_section)
+
+        if metrics_matches:
+            metrics = {metric: value for metric, value in metrics_matches}
+            parsed_error_metrics[variable] = metrics
+        else:
+            parsed_error_metrics[variable] = "No surrogate quality metrics found."
+
+    print(parsed_error_metrics)
+    return parsed_error_metrics
+
+
+def evaluate_sumo_crossvalidation(
+    run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
+    input_vars: List[str],
+    output_response: str,
+    N_CROSS_VALIDATION: int = 5,
+):
+    dakota_conf = create_sumo_crossvalidation(
+        PROCESSED_TRAINING_FILE, 
+        input_vars,
+        [output_response],
+        N_CROSS_VALIDATION=N_CROSS_VALIDATION,
+    )
+        # run dakota
+    dakobj = DakotaObject(
+        map_object=None
+    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj.run(dakota_conf, run_dir)
+    ## TODO I was parsing from the stdout. How to do it now?
+    log_output = ""
+    parsed_error_metrics = _parse_crossvalidation_outputlogs(log_output, 
+                                                             N_CROSS_VALIDATION)
+    
+    return parsed_error_metrics 
 
 if __name__ == "__main__":
     print("DONE")

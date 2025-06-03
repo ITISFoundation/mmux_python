@@ -264,3 +264,73 @@ def extract_predictions_along_axes(
             )
 
     return results
+
+## TODO how to deal w constant variables??
+def create_grid_samples(
+    run_dir: Path,
+    vars: List[str],
+    mins: List[float],
+    maxs: List[float],
+    # TODO: we should generate SuMo with ALL dimensions, and the other vars simply stay constant (at mid value)
+    # FIXME: for now we only use the 2D inputs (so ofc will be less accurate) for SuMo generation & propagation
+    n_points_per_dimension: List[int],
+    downscaling_factor: Optional[float] = None,
+    gridpoints_file_name: str = "grid_input.csv",
+) -> Path:
+    
+    """Generate grid points (either for sampling, or to evaluate the SuMo upon and display)"""
+    GRIDPOINTS_INPUT_FILE = run_dir / gridpoints_file_name
+    if len(vars) != len(n_points_per_dimension):
+        raise ValueError(
+            "Number of variables must match number of points per dimension."
+        )
+    if len(vars) != len(mins):
+        raise ValueError("Number of variables must match number of mins.")
+    if len(vars) != len(maxs):
+        raise ValueError("Number of variables must match number of maxs.")
+    if len(vars) < 1:
+        raise ValueError("At least one variable is required to generate a grid.")
+    
+    if downscaling_factor is not None:
+        n_points_per_dimension = [
+            int(np.ceil(n / downscaling_factor)) for n in n_points_per_dimension
+        ]
+        
+    grid = np.meshgrid(
+        *[
+            np.linspace(mins[i], maxs[i], n_points_per_dimension[i])
+            for i in range(len(n_points_per_dimension))
+        ]
+    )
+    gridpoints = np.vstack([a.ravel() for a in grid]).T
+    gridpoints = pd.DataFrame(gridpoints, columns=vars)
+    
+    gridpoints.to_csv(GRIDPOINTS_INPUT_FILE, index=False)
+    PROCESSED_GRIDPOINTS_INPUT_FILE = Path(process_input_file(GRIDPOINTS_INPUT_FILE))
+
+    return PROCESSED_GRIDPOINTS_INPUT_FILE
+
+
+def extract_predictions_gridpoints(
+    run_dir: Path, RESPONSE: str, input_vars: List[str], NSAMPLESPERVAR: int
+) -> Dict[str, List[float]]:
+    """
+    To retrieve results generated with 'create_samples_along_axes'
+    For a RESPONSE output variable, return a dictionary with input variables as keys.
+    Each contains a dictionary with keys "x" (values along the input axes), "y_hat" (predicted values)
+    and, if the SuMo provides it, "std_hat", i.e. the sqrt of predicted variance at sample points
+    """
+    predictions_df = load_data(run_dir / "predictions.dat")
+    
+    y_hat = get_results(run_dir / "predictions.dat", RESPONSE)
+
+    results = {var: predictions_df[var].astype(float).tolist() for var in input_vars}
+    results[RESPONSE] = y_hat.astype(float).tolist()
+    if (run_dir / "variances.dat").is_file():
+        std_hat = np.sqrt(
+            get_results(run_dir / "variances.dat", RESPONSE + "_variance")
+        )
+        results[RESPONSE + "_std"] = std_hat.astype(float).tolist() # type: ignore
+
+    return results
+

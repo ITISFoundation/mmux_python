@@ -7,12 +7,14 @@ import shutil
 import json
 from typing import List, Literal, Optional, Callable, Dict
 
-from mmux_python.utils.dakota_object import DakotaObject
-from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation
-from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram
-from mmux_python.utils.funs_data_processing import (
+from mmux_python.utils.dakota_object import DakotaObject # type: ignore
+from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation # type: ignore
+from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram # type: ignore
+from mmux_python.utils.funs_data_processing import ( # type: ignore
     create_samples_along_axes,
     extract_predictions_along_axes,
+    create_grid_samples,
+    extract_predictions_gridpoints,
     get_results,
 )
 
@@ -240,6 +242,61 @@ def evaluate_sumo_crossvalidation(
                                                              N_CROSS_VALIDATION)
     
     return parsed_error_metrics 
+
+
+def evaluate_sumo_on_grid(
+    run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
+    input_vars: List[str],
+    response_var: str,
+    # sumo_import_name: Optional[str] = None,
+    # sumo_export_name: Optional[str] = None,
+    NSAMPLESPERVAR: int = 21,
+    # xscale: Literal["linear", "log"] = "linear",
+    # yscale: Literal["linear", "log"] = "linear",
+    # label_converter: Optional[Callable] = None,
+    # MAKEPLOT: bool = False,
+) -> Dict[str, List[float]]:
+    """Given a training data to create a SuMo, generate it, and plot a 2D cut along the central axes
+    (e.g. all variables but the sweeped one will be set to its central value).
+    No callback is necessary (everything internal to Dakota).
+
+    Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
+    Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
+    """
+    # create sweeps data
+    data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
+    PROCESSED_GRIDPOINTS_INPUT_FILE = create_grid_samples(
+        run_dir = run_dir,
+        vars = input_vars,
+        mins = [data[var].min() for var in input_vars],
+        maxs = [data[var].max() for var in input_vars],
+        n_points_per_dimension=[NSAMPLESPERVAR] * len(input_vars),
+        # downscaling_factor=4, ## TESTING ## DOES NOT WORK ATM!!
+    )
+
+    # create dakota file
+    dakota_conf = create_sumo_evaluation(
+        build_file=PROCESSED_TRAINING_FILE,
+        # sumo_import_name=sumo_import_name,
+        # sumo_export_name=sumo_export_name,
+        ### TODO once this works, try to get it to work wo evaluation (or just one sample, if not possible?)
+        samples_file=PROCESSED_GRIDPOINTS_INPUT_FILE,
+        input_variables=input_vars,
+        output_responses=[response_var],
+    )
+
+    # run dakota
+    dakobj = DakotaObject(
+        map_object=None
+    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj.run(dakota_conf, run_dir)
+
+    results = extract_predictions_gridpoints(
+        run_dir, response_var, input_vars, NSAMPLESPERVAR
+    )
+
+    return results
 
 if __name__ == "__main__":
     print("DONE")

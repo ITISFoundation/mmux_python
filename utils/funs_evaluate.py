@@ -149,9 +149,10 @@ def propagate_uq(
     output_response: str,
     means: Dict[str, float],
     stds: Dict[str, float],
+    n_samples: int = 1000,
     xscale: Literal["linear", "log"] = "linear",
     label_converter: Optional[Callable] = None,
-):
+) -> List[float]:
 
     # create dakota file
     dakota_conf = create_uq_propagation(
@@ -160,6 +161,7 @@ def propagate_uq(
         input_means=means,
         input_stds=stds,
         output_responses=[output_response],
+        n_samples=n_samples,
     )
 
     # run dakota
@@ -168,15 +170,7 @@ def propagate_uq(
     )  # no need to evaluate any function (only the SuMo, internal to Dakota)
     dakobj.run(dakota_conf, run_dir)
     x = get_results(run_dir / f"predictions.dat", output_response)
-    savepath = plot_uq_histogram(
-        x,
-        output_response,
-        savedir=run_dir,
-        plotting_xscale=xscale,
-        label_converter=label_converter,
-    )
-
-    return savepath
+    return x.tolist()
 
 def _parse_crossvalidation_outputlogs(log_output: str, N_CROSS_VALIDATION: int):
     import re

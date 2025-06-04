@@ -6,9 +6,10 @@ import numpy as np
 import shutil
 import json
 from typing import List, Literal, Optional, Callable, Dict
+from sklearn.model_selection import KFold
 
 from mmux_python.utils.dakota_object import DakotaObject # type: ignore
-from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation # type: ignore
+from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation, create_sumo_manual_crossvalidation # type: ignore
 from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram # type: ignore
 from mmux_python.utils.funs_data_processing import ( # type: ignore
     create_samples_along_axes,
@@ -16,6 +17,7 @@ from mmux_python.utils.funs_data_processing import ( # type: ignore
     create_grid_samples,
     extract_predictions_gridpoints,
     get_results,
+    load_data,
 )
 
 
@@ -243,10 +245,57 @@ def evaluate_sumo_crossvalidation(
     
     return parsed_error_metrics 
 
+def evaluate_sumo_manual_crossvalidation(
+    run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
+    input_vars: List[str],
+    output_response: str,
+    N_CROSS_VALIDATION: int = 5,
+):
+    n_samples = len(load_data(PROCESSED_TRAINING_FILE))
+    kf = KFold(n_splits=N_CROSS_VALIDATION, shuffle=True, random_state=42)
+    indices = np.arange(n_samples)
+    all_observations = load_data(PROCESSED_TRAINING_FILE)[output_response]
+    all_predictions = np.empty(n_samples)
+    all_stds = np.empty(n_samples)
+
+    for fold, (train_idx, val_idx) in enumerate(kf.split(indices)):
+        fold_run_dir = run_dir / f"fold_{fold}"
+        os.makedirs(fold_run_dir, exist_ok=True)
+
+        # Create Dakota config for this fold
+        dakota_conf = create_sumo_manual_crossvalidation(
+            fold_run_dir,
+            PROCESSED_TRAINING_FILE,
+            input_vars,
+            output_response,
+            validation_indices=val_idx.tolist(),
+            dakota_conf_file= fold_run_dir / "dakota_config.in",
+        )
+        dakobj = DakotaObject(map_object=None)
+        dakobj.run(dakota_conf, fold_run_dir)
+
+        # Extract predictions for this fold and store in the correct positions
+        fold_predictions = get_results(fold_run_dir / "predictions.dat", output_response)
+        print(f"Fold {fold} predictions: {fold_predictions}")
+        print(f"Validation indices: {val_idx}")
+        
+        all_predictions[val_idx] = fold_predictions
+        if (fold_run_dir / "variances.dat").is_file():
+            fold_var = get_results(fold_run_dir / "variances.dat", output_response+"_variance")
+            all_stds[val_idx] = np.sqrt(fold_var)
+
+    return {
+        output_response: all_observations.tolist(),
+        output_response + "_hat": all_predictions.tolist(),
+        output_response + "_std:hat": all_stds.tolist(),
+    }
+
 
 def evaluate_sumo_on_grid(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
+    grid_vars: List[str],
     input_vars: List[str],
     response_var: str,
     # sumo_import_name: Optional[str] = None,
@@ -257,8 +306,11 @@ def evaluate_sumo_on_grid(
     # label_converter: Optional[Callable] = None,
     # MAKEPLOT: bool = False,
 ) -> Dict[str, List[float]]:
-    """Given a training data to create a SuMo, generate it, and plot a 2D cut along the central axes
-    (e.g. all variables but the sweeped one will be set to its central value).
+    """Given a training data to create a SuMo, generate it, and evaluate on a grid of points.
+    The grid is created by sweeping the variables in `grid_vars` over their min and max values,
+    while the other variables in `input_vars` are set to their central values.
+    The grid is created by sampling `NSAMPLESPERVAR` points per variable.
+    The results are returned as a dictionary, where the keys are the variable names and the values are lists of values (inputs / predictions).
     No callback is necessary (everything internal to Dakota).
 
     Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
@@ -268,8 +320,10 @@ def evaluate_sumo_on_grid(
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_GRIDPOINTS_INPUT_FILE = create_grid_samples(
         run_dir = run_dir,
-        vars = input_vars,
+        grid_vars = grid_vars,
+        input_vars = input_vars,
         mins = [data[var].min() for var in input_vars],
+        means = [data[var].mean() for var in input_vars],
         maxs = [data[var].max() for var in input_vars],
         n_points_per_dimension=[NSAMPLESPERVAR] * len(input_vars),
         # downscaling_factor=4, ## TESTING ## DOES NOT WORK ATM!!

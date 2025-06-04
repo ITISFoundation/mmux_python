@@ -97,6 +97,7 @@ def process_input_file(
     columns_to_remove: List[str] = ["interface"],
     make_log: Optional[bool | List[str]] = None,
     custom_operations: Optional[Callable] = None,
+    suffix: str = "processed",
     **kwargs,
 ) -> Path:
     """
@@ -141,7 +142,7 @@ def process_input_file(
                 df.rename(columns={var: "log_" + var}, inplace=True)
 
     processed_file = Path(
-        "_".join([os.path.splitext(f)[0] for f in files]) + "_processed.txt"
+        "_".join([os.path.splitext(f)[0] for f in files]+[suffix]) + ".txt"
     )
     df.to_csv(processed_file, sep=" ", index=False)
     return processed_file
@@ -161,8 +162,6 @@ def _filter_data(
     - filter_N_samples: Number of rows to keep from the top of the dataframe. Defaults to None.
     - filter_highest_N: Number of rows to keep based on the highest values of a specified column
                     (given by 'filter_highest_N_variable'). Defaults to None.
-
-
     """
     ###################### Filtering ###################################
     if filter_highest_N is not None:
@@ -187,7 +186,7 @@ def _filter_data(
     ## allow to only keep certain idxs
     if keep_idxs is not None:
         original_len = len(df)
-        df = df[keep_idxs]
+        df = df.loc[keep_idxs]
         print(f"Keeping only {len(df)} rows (of {original_len})")
 
     return df
@@ -268,8 +267,10 @@ def extract_predictions_along_axes(
 ## TODO how to deal w constant variables??
 def create_grid_samples(
     run_dir: Path,
-    vars: List[str],
+    grid_vars: List[str],
+    input_vars: List[str],
     mins: List[float],
+    means: List[float],
     maxs: List[float],
     # TODO: we should generate SuMo with ALL dimensions, and the other vars simply stay constant (at mid value)
     # FIXME: for now we only use the 2D inputs (so ofc will be less accurate) for SuMo generation & propagation
@@ -280,15 +281,15 @@ def create_grid_samples(
     
     """Generate grid points (either for sampling, or to evaluate the SuMo upon and display)"""
     GRIDPOINTS_INPUT_FILE = run_dir / gridpoints_file_name
-    if len(vars) != len(n_points_per_dimension):
+    if len(input_vars) != len(n_points_per_dimension):
         raise ValueError(
             "Number of variables must match number of points per dimension."
         )
-    if len(vars) != len(mins):
+    if len(input_vars) != len(mins):
         raise ValueError("Number of variables must match number of mins.")
-    if len(vars) != len(maxs):
+    if len(input_vars) != len(maxs):
         raise ValueError("Number of variables must match number of maxs.")
-    if len(vars) < 1:
+    if len(input_vars) < 1:
         raise ValueError("At least one variable is required to generate a grid.")
     
     if downscaling_factor is not None:
@@ -299,11 +300,13 @@ def create_grid_samples(
     grid = np.meshgrid(
         *[
             np.linspace(mins[i], maxs[i], n_points_per_dimension[i])
+            if grid_vars[i] in input_vars
+            else means[i]
             for i in range(len(n_points_per_dimension))
         ]
     )
     gridpoints = np.vstack([a.ravel() for a in grid]).T
-    gridpoints = pd.DataFrame(gridpoints, columns=vars)
+    gridpoints = pd.DataFrame(gridpoints, columns=input_vars)
     
     gridpoints.to_csv(GRIDPOINTS_INPUT_FILE, index=False)
     PROCESSED_GRIDPOINTS_INPUT_FILE = Path(process_input_file(GRIDPOINTS_INPUT_FILE))

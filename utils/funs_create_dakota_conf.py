@@ -477,3 +477,61 @@ def create_sumo_crossvalidation(
         write_to_file(dakota_conf, dakota_conf_file)
 
     return dakota_conf
+
+
+
+def create_sumo_manual_crossvalidation(
+    fold_run_dir: Path,
+    build_file: Path,
+    input_variables: List[str],
+    output_response: str,
+    validation_indices: List[int],
+    dakota_conf_file: Optional[str | Path] = None,
+):
+    from mmux_python.utils.funs_data_processing import process_input_file, load_data
+    dakota_conf = start_dakota_file()
+    n_samples = len(load_data(build_file))
+    print(f"Number of samples in the build file: {n_samples}")
+    ## filter OUT the validation indices from the build_file
+    TRAINING_SAMPLES_FILE = process_input_file(
+        build_file,
+        keep_idxs=[i for i in range(n_samples) if i not in validation_indices],
+        columns_to_keep=input_variables + [output_response],
+        suffix="training"
+    )
+    import shutil
+    TRAINING_SAMPLES_FILE = Path(shutil.move(
+        str(TRAINING_SAMPLES_FILE.resolve()),
+        str(fold_run_dir / TRAINING_SAMPLES_FILE.name)  # move to the fold run dir
+    ))
+    dakota_conf += add_surrogate_model(
+        training_samples_file = str(TRAINING_SAMPLES_FILE.resolve()),
+    )
+    #
+    JUST_INPUTS_FILE = process_input_file(
+        build_file,
+        keep_idxs= validation_indices,
+        columns_to_keep=input_variables + [output_response],
+        suffix="validation"
+    )
+    JUST_INPUTS_FILE = Path(shutil.move(
+        str(JUST_INPUTS_FILE.resolve()),
+        str(fold_run_dir / JUST_INPUTS_FILE.name)  # move to the fold run dir
+    ))
+    ## For some freaking reason, there are 6 points in JUST_INPUTS_FILE and 9 get evaluated!!
+    print("Build file: ", build_file)
+    print("Training samples file: ", TRAINING_SAMPLES_FILE)
+    print("Just inputs file: ", JUST_INPUTS_FILE)
+    dakota_conf += add_evaluation_method(
+        str(JUST_INPUTS_FILE.resolve()),
+        includes_eval_id=False,
+    )
+    dakota_conf += add_continuous_variables(
+        variables=input_variables,
+    )
+    dakota_conf += add_responses([output_response])
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+
+    return dakota_conf

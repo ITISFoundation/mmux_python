@@ -1,15 +1,24 @@
 from pathlib import Path
 import datetime
 import os
-from typing import List, Literal, Optional, Callable
-from utils.dakota_object import DakotaObject
-from utils.funs_create_dakota_conf import create_sumo_evaluation
-from utils.funs_plotting import plot_response_curves
-from utils.funs_data_processing import (
+import pandas as pd
+import numpy as np
+import shutil
+import json
+from typing import List, Literal, Optional, Callable, Dict
+from sklearn.model_selection import KFold
+
+from mmux_python.utils.dakota_object import DakotaObject # type: ignore
+from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation, create_sumo_manual_crossvalidation # type: ignore
+from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram # type: ignore
+from mmux_python.utils.funs_data_processing import ( # type: ignore
     create_samples_along_axes,
     extract_predictions_along_axes,
+    create_grid_samples,
+    extract_predictions_gridpoints,
+    get_results,
+    load_data,
 )
-import pandas as pd
 
 
 def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
@@ -22,18 +31,50 @@ def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
     print("temp_dir: ", temp_dir)
     return temp_dir
 
+def retrieve_csv_result(
+    csv_file_path: str, inputs: Dict[str, float], outputs: Optional[List[str]] = None
+) -> Dict[str, float]:
+    """
+    Retrieve the result from a csv file.
+    """
+
+    df = pd.read_csv(csv_file_path)
+
+    for col in inputs.keys():
+        if col not in df.columns:
+            raise ValueError(
+                f"Input {col} not in the csv file. Columns are: {df.columns.values}"
+            )
+            
+    if outputs is not None:
+        for col in outputs:
+            if col not in df.columns:
+                raise ValueError(
+                    f"Output {col} not in the csv file. Columns are: {df.columns.values}"
+                )
+        result = df.loc[np.all(df[inputs.keys()] == inputs.values(), axis=1), outputs]
+    else:
+        result = df.loc[np.all(df[inputs.keys()] == inputs.values(), axis=1)]
+    # Check if the result is empty or has multiple rows
+    assert len(result) != 0, f"No result found for inputs {inputs}."
+    assert len(result) == 1, f"Multiple results found for inputs {inputs}."
+
+    return result.iloc[0].to_dict()
+
 
 def evaluate_sumo_along_axes(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
     input_vars: List[str],
-    ## TODO be able to load / query SuMo directly; or simply be able to do on any function (although prob better as separate function, that)
-    response_vars: List[str],
+    response_var: str,
+    sumo_import_name: Optional[str] = None,
+    sumo_export_name: Optional[str] = None,
     NSAMPLESPERVAR: int = 21,
     xscale: Literal["linear", "log"] = "linear",
     yscale: Literal["linear", "log"] = "linear",
     label_converter: Optional[Callable] = None,
-):
+    MAKEPLOT: bool = False,
+) -> Dict[str, Dict[str, np.ndarray]]:
     """Given a training data to create a SuMo, generate it, and plot the profile along the central axes
     (e.g. all variables but the sweeped one will be set to its central value).
     No callback is necessary (everything internal to Dakota).
@@ -47,13 +88,23 @@ def evaluate_sumo_along_axes(
         run_dir, data, input_vars, NSAMPLESPERVAR
     )
 
+    if sumo_import_name:
+        models_dir = run_dir.parent / "models"
+        assert (
+            models_dir.exists()
+        ), f"Models dir {models_dir} does not exist, but SuMo import is trying to copy files there"
+        for file in models_dir.glob(f"{sumo_import_name}*"):
+            shutil.copy(file, run_dir)
+
     # create dakota file
     dakota_conf = create_sumo_evaluation(
         build_file=PROCESSED_TRAINING_FILE,
-        ### TODO be able to save & load surrogate models (start w GP) rather than create them every time
+        sumo_import_name=sumo_import_name,
+        sumo_export_name=sumo_export_name,
+        ### TODO once this works, try to get it to work wo evaluation (or just one sample, if not possible?)
         samples_file=PROCESSED_SWEEP_INPUT_FILE,
         input_variables=input_vars,
-        output_responses=response_vars,
+        output_responses=[response_var],
     )
 
     # run dakota
@@ -62,13 +113,25 @@ def evaluate_sumo_along_axes(
     )  # no need to evaluate any function (only the SuMo, internal to Dakota)
     dakobj.run(dakota_conf, run_dir)
 
-    for RESPONSE in response_vars:
-        results = extract_predictions_along_axes(
-            run_dir, RESPONSE, input_vars, NSAMPLESPERVAR
-        )
+    if sumo_export_name:
+        models_dir = run_dir.parent / "models"
+        os.makedirs(models_dir, exist_ok=True)
+        for file in run_dir.glob(f"{sumo_export_name}*"):
+            shutil.copy(file, models_dir)
+            # Also save input and output variables to a JSON file
+            json_data = {"input_vars": input_vars, "output_var": response_var}
+            json_save_path = models_dir / f"{file.name}.json"
+            with open(json_save_path, "w") as json_file:
+                json.dump(json_data, json_file, indent=4)
+
+    results = extract_predictions_along_axes(
+        run_dir, response_var, input_vars, NSAMPLESPERVAR
+    )
+
+    if MAKEPLOT:
         plot_response_curves(
             results,
-            RESPONSE,
+            response_var,
             input_vars,
             savedir=run_dir,
             plotting_xscale=xscale,
@@ -76,185 +139,212 @@ def evaluate_sumo_along_axes(
             label_converter=label_converter,
         )
 
+    return results
+
+### TODO refactor in new MMUX-compatible version (like above)
+def propagate_uq(
+    run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
+    input_vars: List[str],
+    output_response: str,
+    means: Dict[str, float],
+    stds: Dict[str, float],
+    n_samples: int = 1000,
+    xscale: Literal["linear", "log"] = "linear",
+    label_converter: Optional[Callable] = None,
+) -> List[float]:
+
+    # create dakota file
+    dakota_conf = create_uq_propagation(
+        build_file=PROCESSED_TRAINING_FILE,
+        input_variables=input_vars,
+        input_means=means,
+        input_stds=stds,
+        output_responses=[output_response],
+        n_samples=n_samples,
+    )
+
+    # run dakota
+    dakobj = DakotaObject(
+        map_object=None
+    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj.run(dakota_conf, run_dir)
+    x = get_results(run_dir / f"predictions.dat", output_response)
+    return x.tolist()
+
+def _parse_crossvalidation_outputlogs(log_output: str, N_CROSS_VALIDATION: int):
+    import re
+
+    variable_name_pattern = (
+        f"Surrogate quality metrics \({N_CROSS_VALIDATION}-fold CV\) for (\w+):"
+    )
+    metrics_pattern = r"\s+(root_mean_squared|sum_abs|mean_abs|max_abs)\s+([\d.e+-]+|nan)"
+
+
+    # Find all occurrences of variable names in the log
+    variables = re.findall(variable_name_pattern, log_output)
+
+    # Split the log output by the variable name to handle each output separately
+    log_parts = re.split(variable_name_pattern, log_output)
+    log_parts = log_parts[1:]  # Skip the first part (before the first variable name)
+
+    # Dictionary to hold the parsed results for each output variable
+    parsed_error_metrics = {}
+
+    # Loop through the log parts, and extract metrics for each output variable
+    for i, variable in enumerate(variables):
+        # The log part after each variable name contains the metrics section for that variable
+        metrics_section = log_parts[
+            2 * i + 1
+        ]  # The log part immediately after the variable name
+
+        ## remove the training error of the next variable
+        metrics_section = metrics_section.split("build (training) points")[0]
+
+        # Find all the surrogate quality metrics for this particular output variable
+        metrics_matches = re.findall(metrics_pattern, metrics_section)
+
+        if metrics_matches:
+            metrics = {metric: value for metric, value in metrics_matches}
+            parsed_error_metrics[variable] = metrics
+        else:
+            parsed_error_metrics[variable] = "No surrogate quality metrics found."
+
+    print(parsed_error_metrics)
+    return parsed_error_metrics
+
+
+def evaluate_sumo_crossvalidation(
+    run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
+    input_vars: List[str],
+    output_response: str,
+    N_CROSS_VALIDATION: int = 5,
+):
+    dakota_conf = create_sumo_crossvalidation(
+        PROCESSED_TRAINING_FILE, 
+        input_vars,
+        [output_response],
+        N_CROSS_VALIDATION=N_CROSS_VALIDATION,
+    )
+        # run dakota
+    dakobj = DakotaObject(
+        map_object=None
+    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj.run(dakota_conf, run_dir)
+    ## TODO I was parsing from the stdout. How to do it now?
+    log_output = ""
+    parsed_error_metrics = _parse_crossvalidation_outputlogs(log_output, 
+                                                             N_CROSS_VALIDATION)
+    
+    return parsed_error_metrics 
+
+def evaluate_sumo_manual_crossvalidation(
+    run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
+    input_vars: List[str],
+    output_response: str,
+    N_CROSS_VALIDATION: int = 5,
+):
+    n_samples = len(load_data(PROCESSED_TRAINING_FILE))
+    kf = KFold(n_splits=N_CROSS_VALIDATION, shuffle=True, random_state=42)
+    indices = np.arange(n_samples)
+    all_observations = load_data(PROCESSED_TRAINING_FILE)[output_response].astype(float)
+    all_predictions = np.empty(n_samples)
+    all_stds = np.empty(n_samples)
+
+    for fold, (train_idx, val_idx) in enumerate(kf.split(indices)):
+        fold_run_dir = run_dir / f"fold_{fold}"
+        os.makedirs(fold_run_dir, exist_ok=True)
+
+        # Create Dakota config for this fold
+        dakota_conf = create_sumo_manual_crossvalidation(
+            fold_run_dir,
+            PROCESSED_TRAINING_FILE,
+            input_vars,
+            output_response,
+            validation_indices=val_idx.tolist(),
+            dakota_conf_file= fold_run_dir / "dakota_config.in",
+        )
+        dakobj = DakotaObject(map_object=None)
+        dakobj.run(dakota_conf, fold_run_dir)
+
+        # Extract predictions for this fold and store in the correct positions
+        fold_predictions = get_results(fold_run_dir / "predictions.dat", output_response)
+        print(f"Fold {fold} predictions: {fold_predictions}")
+        print(f"Validation indices: {val_idx}")
+        
+        all_predictions[val_idx] = fold_predictions
+        if (fold_run_dir / "variances.dat").is_file():
+            fold_var = get_results(fold_run_dir / "variances.dat", output_response+"_variance")
+            all_stds[val_idx] = np.sqrt(fold_var)
+
+    return {
+        output_response: all_observations.tolist(),
+        output_response + "_hat": all_predictions.tolist(),
+        output_response + "_std_hat": all_stds.tolist(),
+    }
+
+
+def evaluate_sumo_on_grid(
+    run_dir: Path,
+    PROCESSED_TRAINING_FILE: Path,
+    grid_vars: List[str],
+    input_vars: List[str],
+    response_var: str,
+    # sumo_import_name: Optional[str] = None,
+    # sumo_export_name: Optional[str] = None,
+    NSAMPLESPERVAR: int = 21,
+    # xscale: Literal["linear", "log"] = "linear",
+    # yscale: Literal["linear", "log"] = "linear",
+    # label_converter: Optional[Callable] = None,
+    # MAKEPLOT: bool = False,
+) -> Dict[str, List[float]]:
+    """Given a training data to create a SuMo, generate it, and evaluate on a grid of points.
+    The grid is created by sweeping the variables in `grid_vars` over their min and max values,
+    while the other variables in `input_vars` are set to their central values.
+    The grid is created by sampling `NSAMPLESPERVAR` points per variable.
+    The results are returned as a dictionary, where the keys are the variable names and the values are lists of values (inputs / predictions).
+    No callback is necessary (everything internal to Dakota).
+
+    Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
+    Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
     """
-    Help on class study in module dakota.environment.environment:
+    # create sweeps data
+    data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
+    PROCESSED_GRIDPOINTS_INPUT_FILE = create_grid_samples(
+        run_dir = run_dir,
+        grid_vars = grid_vars,
+        input_vars = input_vars,
+        mins = [data[var].min() for var in input_vars],
+        means = [data[var].mean() for var in input_vars],
+        maxs = [data[var].max() for var in input_vars],
+        n_points_per_dimension=[NSAMPLESPERVAR] * len(input_vars),
+        # downscaling_factor=4, ## TESTING ## DOES NOT WORK ATM!!
+    )
 
-    class study(pybind11_builtins.pybind11_object)
-    |  Method resolution order:
-    |      study
-    |      pybind11_builtins.pybind11_object
-    |      builtins.object
-    |
-    |  Methods defined here:
-    |
-    |  __init__(...)
-    |      __init__(*args, **kwargs)
-    |      Overloaded function.
-    |
-    |      1. __init__(self: dakota.environment.environment.study, callback: object, input_string: str, read_restart: str = '') -> None
-    |
-    |      2. __init__(self: dakota.environment.environment.study, callbacks: dict, input_string: str, read_restart: str = '') -> None
-    |
-    |  execute(...)
-    |      execute(self: dakota.environment.environment.study) -> None
-    |
-    |  response_results(...)
-    |      response_results(self: dakota.environment.environment.study) -> dakota.environment.environment.Response
-    |
-    |  variables_results(...)
-    |      variables_results(self: dakota.environment.environment.study) -> dakota.environment.environment.Variables
-    |
-    |  ----------------------------------------------------------------------
-    |  Static methods inherited from pybind11_builtins.pybind11_object:
-    |
-    |  __new__(*args, **kwargs) from pybind11_builtins.pybind11_type
-    |      Create and return a new object.  See help(type) for accurate signature.
+    # create dakota file
+    dakota_conf = create_sumo_evaluation(
+        build_file=PROCESSED_TRAINING_FILE,
+        # sumo_import_name=sumo_import_name,
+        # sumo_export_name=sumo_export_name,
+        ### TODO once this works, try to get it to work wo evaluation (or just one sample, if not possible?)
+        samples_file=PROCESSED_GRIDPOINTS_INPUT_FILE,
+        input_variables=input_vars,
+        output_responses=[response_var],
+    )
 
-        """
+    # run dakota
+    dakobj = DakotaObject(
+        map_object=None
+    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj.run(dakota_conf, run_dir)
 
-    """ Parallel Runner code
+    results = extract_predictions_gridpoints(
+        run_dir, response_var, input_vars, NSAMPLESPERVAR
+    )
 
-            input_batches = self.batch_input_tasks(input_tasks, n_of_batches)
-            def batch_input_tasks(self, input_tasks, n_of_batches):
-                batches = [{"batch_i": None, "tasks": []} for _ in range(n_of_batches)]
-                for task_i, input_task in enumerate(input_tasks):
-                    batch_id = task_i % n_of_batches
-                    batches[batch_id]["batch_i"] = batch_id
-                    batches[batch_id]["tasks"].append((task_i, input_task))
-            return batches
-            output_tasks = input_tasks.copy()
-            for output_task in output_tasks:
-                output_task["status"] = "SUBMITTED"
-            output_tasks_content = json.dumps(
-                {"uuid": tasks_uuid, "tasks": output_tasks}
-            )
-            self.output_tasks_path.write_text(output_tasks_content)
-            output_batches = self.run_batches(
-                tasks_uuid, input_batches, number_of_workers
-            )
-            for output_batch in output_batches:
-                output_batch_tasks = output_batch["tasks"]
-
-                for output_task_i, output_task in output_batch_tasks:
-                    output_tasks[output_task_i] = output_task
-                    # logging.info(output_task["status"])
-
-                output_tasks_content = json.dumps(
-                    {"uuid": tasks_uuid, "tasks": output_tasks}
-                )
-                self.output_tasks_path.write_text(output_tasks_content)
-                logger.info(f"Finished a batch of {len(output_batch_tasks)} tasks")
-            logger.info(f"Finished a set of {len(output_tasks)} tasks")
-            logger.debug(f"Finished a set of tasks: {output_tasks_content}")
-
-
-
-        def run_batches(self, tasks_uuid, input_batches, number_of_workers):
-            logger.info(f"Evaluating {len(input_batches)} batches")
-            logger.debug(f"Evaluating: {input_batches}")
-
-            self.n_of_finished_batches = 0
-
-            def map_func(batch_with_uuid, trial_number=1):
-                return asyncio.run(async_map_func(batch_with_uuid, trial_number))
-
-            def set_batch_status(batch, message):
-                for task_i, task in batch["tasks"]:
-                    task["status"] = "FAILURE"
-
-            async def async_map_func(batch_with_uuid, trial_number=1):
-                batch_uuid, batch = batch_with_uuid
-                try:
-                    logger.info(
-                        "Running worker for a batch of "
-                        f"{len(batch["tasks"])} tasks"
-                    )
-                    logger.debug(f"Running worker for batch: {batch}")
-                    self.jobs_file_write_status_change(
-                        id=batch_uuid,
-                        status="running",
-                    )
-
-                    task_input = self.transform_batch_to_task_input(batch)
-
-                    job_timeout = (
-                        self.settings.job_timeout
-                        if self.settings.job_timeout > 0
-                        else None
-                    )
-
-                    output_batch = await asyncio.wait_for(
-                        self.run_job(task_input, batch), timeout=job_timeout
-                    )
-
-                    self.jobs_file_write_status_change(
-                        id=batch_uuid,
-                        status="done",
-                    )
-
-                    self.n_of_finished_batches += 1
-                    logger.info(
-                        "Worker has finished batch "
-                        f"{self.n_of_finished_batches} of {len(input_batches)}"
-                    )
-
-        async def run_job(self, task_input, input_batch):
-            job_inputs = self.create_job_inputs(task_input)
-
-            logger.debug(f"Sending inputs: {job_inputs}")
-            if self.test_mode:
-                import datetime
-
-                print(f"Start run job: {datetime.datetime.now()}")
-                logger.info("Map in test mode, just returning input")
-
-                done_batch = self.process_job_outputs(
-                    job_inputs, input_batch, "SUCCESS"
-                )
-                time.sleep(1)
-                print(f"Stop run job: {datetime.datetime.now()}")
-
-                return done_batch
-
-            with self.create_study_job(
-                self.settings.template_id, job_inputs, self.studies_api
-            ) as job:
-                logger.info(f"Calling start study api for job {job.id}")
-                with self.lock:
-    ##############################################################################
-                    job_status = self.studies_api.start_study_job(
-                        study_id=self.settings.template_id, job_id=job.id
-                    )
-    ##############################################################################
-                logger.info(f"Start study api for job {job.id} done")
-
-                while job_status.stopped_at is None:
-                    job_status = self.studies_api.inspect_study_job(
-                        study_id=self.settings.template_id, job_id=job.id
-                    )
-                    time.sleep(1)
-
-                if job_status.state != "SUCCESS":
-                    logger.error(
-                        f"Batch failed with {job_status.state}: " f"{job_inputs}"
-                    )
-                    raise Exception(
-                        f"Job returned a failed status: {job_status.state}"
-                    )
-                else:
-                    with self.lock:
-                        job_outputs = self.studies_api.get_study_job_outputs(
-                            study_id=self.settings.template_id, job_id=job.id
-                        ).results
-
-                done_batch = self.process_job_outputs(
-                    job_outputs, input_batch, job_status.state
-                )
-
-            return done_batch
-
-    """
-
+    return results
 
 if __name__ == "__main__":
     print("DONE")

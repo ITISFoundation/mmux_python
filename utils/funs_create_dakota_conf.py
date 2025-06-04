@@ -1,5 +1,5 @@
 ### Useful functions to couple Python and Dakota - to use accross different scripts & notebooks
-from typing import List, Optional, Literal, Callable
+from typing import List, Optional, Literal, Callable, Dict
 from pathlib import Path
 
 
@@ -123,6 +123,9 @@ def add_responses(descriptors: List[str]) -> str:
 def add_surrogate_model(
     id_model: str = "SURR_MODEL",
     surrogate_type: str = "gaussian_process surfpack",
+    sumo_import_name: Optional[str] = None,
+    sumo_export_name: Optional[str] = None,
+    export_import_format: str = "text_archive",
     training_samples_file: Optional[str] = None,
     id_sampling_method: Optional[str] = None,
     cross_validation_folds: Optional[int] = None,
@@ -132,11 +135,27 @@ def add_surrogate_model(
             id_model '{id_model}'
             surrogate global
                 {surrogate_type}
-                {"" if not cross_validation_folds
-                else f'''
+        """
+
+    if sumo_import_name:
+        conf += f"""
+                import_model {export_import_format} filename_prefix='{sumo_import_name}'
+        """
+        # When importing a surrogate model, it is crucial that the global surrogate model part
+        # of the Dakota input file be identical for export and import,
+        # except for changing export_model and its child keywords to those needed for import_model.
+        # Any other keywords such as specifying a dace_iterator or imported points
+        # must remain intact to satisfy internal surrogate constructor requirements.
+    else:
+        if sumo_export_name:
+            conf += f"""
+                    export_model filename_prefix='{sumo_export_name}' formats={export_import_format}
+            """
+
+    if cross_validation_folds:
+        conf += f"""
                 cross_validation folds = {cross_validation_folds}
                 metrics = "root_mean_squared" "sum_abs" "mean_abs" "max_abs" "rsquared"
-                '''}
         """
 
     if training_samples_file is None:
@@ -155,23 +174,24 @@ def add_surrogate_model(
                     '{training_samples_file}'
                     custom_annotated header use_variable_labels {'eval_id' if 'processed' not in training_samples_file else ''}"""
 
+        ### DONT KNOW HOW TO USE THIS YET
+        # if id_truth_model is None:
+        #     print(
+        #         "No truth model to evaluate samples provided for the surrogate model "
+        #         "- it must then be provided within the sampling method"
+        #     )
+        #     assert (
+        #         id_sampling_method is not None
+        #     ), "id_sampling must be provided if no truth model is provided"
+
+        #             {f"truth_model_pointer =  '{id_truth_model}' "
+        #             if id_truth_model is not None else
+        #             f"dace_method_pointer = '{id_sampling_method}'"}
+
     conf += f"""
                 export_approx_points_file "predictions.dat"
                 {'export_approx_variance_file "variances.dat"' if "gaussian_process" in surrogate_type else ""}
         """
-    ### DONT KNOW HOW TO USE THIS YET
-    # if id_truth_model is None:
-    #     print(
-    #         "No truth model to evaluate samples provided for the surrogate model "
-    #         "- it must then be provided within the sampling method"
-    #     )
-    #     assert (
-    #         id_sampling_method is not None
-    #     ), "id_sampling must be provided if no truth model is provided"
-
-    #             {f"truth_model_pointer =  '{id_truth_model}' "
-    #             if id_truth_model is not None else
-    #             f"dace_method_pointer = '{id_sampling_method}'"}
 
     return conf
 
@@ -378,9 +398,15 @@ def create_sumo_evaluation(
     input_variables: List[str],
     output_responses: List[str],
     dakota_conf_file: Optional[str | Path] = None,
-):
+    sumo_import_name: Optional[str] = None,
+    sumo_export_name: Optional[str] = None,
+) -> str:
     dakota_conf = start_dakota_file()
-    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_surrogate_model(
+        training_samples_file=str(build_file.resolve()),
+        sumo_export_name=sumo_export_name,
+        sumo_import_name=sumo_import_name,
+    )
     dakota_conf += add_evaluation_method(str(samples_file.resolve()))
     dakota_conf += add_continuous_variables(variables=input_variables)
     dakota_conf += add_responses(output_responses)
@@ -388,4 +414,140 @@ def create_sumo_evaluation(
 
     if dakota_conf_file:
         write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf
+
+
+def create_export_sumo(
+    build_file: Path,
+    input_variables: List[str],
+    output_responses: List[str],
+    dakota_conf_file: Optional[str | Path] = None,
+) -> str:
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_continuous_variables(variables=input_variables)
+    dakota_conf += add_responses(output_responses)
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf
+
+
+def create_uq_propagation(
+    build_file: Path,
+    # surrogate_type: Optional[str] = None, ## for now, always GP
+    # TODO be able to load sumo (instead of building every time)
+    input_variables: List[str],
+    input_means: Dict[str, float],
+    input_stds: Dict[str, float],
+    output_responses: List[str],
+    n_samples: int = 10000,
+    dakota_conf_file: Optional[str | Path] = None,
+) -> str:
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_sampling_method(num_samples=n_samples)
+    ## TODO this is only NORMAL uncertain -- need to generalize if we want to include other types of input distributions
+    dakota_conf += f"""
+        variables
+            id_variables = "VARIABLES"
+            active uncertain
+            normal_uncertain = {len(input_variables)}
+                descriptors {" ".join([f"'{var}'" for var in input_variables])}
+                means {" ".join([str(input_means[var]) for var in input_variables])}
+                std_deviations {" ".join([str(input_stds[var]) for var in input_variables])}
+        """
+    dakota_conf += add_responses(output_responses)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+
+    return dakota_conf
+
+def create_sumo_crossvalidation(
+    build_file: Path,
+    input_variables: List[str],
+    output_responses: List[str],
+    dakota_conf_file: Optional[str | Path] = None,
+    N_CROSS_VALIDATION = 5
+):
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(
+        training_samples_file = str(build_file.resolve()),
+        cross_validation_folds=N_CROSS_VALIDATION,
+    )
+    from funs_data_processing import process_input_file
+    JUST_INPUTS_FILE = process_input_file(
+        build_file,
+        columns_to_remove=output_responses,
+    )
+    dakota_conf += add_evaluation_method(
+        str(JUST_INPUTS_FILE.resolve()),
+        includes_eval_id=False,  ## just to have some method, otherwise Dakota gives error
+    )
+    dakota_conf += add_continuous_variables(
+        variables=input_variables,
+    )
+    dakota_conf += add_responses(output_responses)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+
+    return dakota_conf
+
+
+
+def create_sumo_manual_crossvalidation(
+    fold_run_dir: Path,
+    build_file: Path,
+    input_variables: List[str],
+    output_response: str,
+    validation_indices: List[int],
+    dakota_conf_file: Optional[str | Path] = None,
+):
+    from mmux_python.utils.funs_data_processing import process_input_file, load_data
+    dakota_conf = start_dakota_file()
+    n_samples = len(load_data(build_file))
+    print(f"Number of samples in the build file: {n_samples}")
+    ## filter OUT the validation indices from the build_file
+    TRAINING_SAMPLES_FILE = process_input_file(
+        build_file,
+        keep_idxs=[i for i in range(n_samples) if i not in validation_indices],
+        columns_to_keep=input_variables + [output_response],
+        suffix="training"
+    )
+    import shutil
+    TRAINING_SAMPLES_FILE = Path(shutil.move(
+        str(TRAINING_SAMPLES_FILE.resolve()),
+        str(fold_run_dir / TRAINING_SAMPLES_FILE.name)  # move to the fold run dir
+    ))
+    dakota_conf += add_surrogate_model(
+        training_samples_file = str(TRAINING_SAMPLES_FILE.resolve()),
+    )
+    #
+    JUST_INPUTS_FILE = process_input_file(
+        build_file,
+        keep_idxs= validation_indices,
+        columns_to_keep=input_variables,
+        suffix="validation"
+    )
+    JUST_INPUTS_FILE = Path(shutil.move(
+        str(JUST_INPUTS_FILE.resolve()),
+        str(fold_run_dir / JUST_INPUTS_FILE.name)  # move to the fold run dir
+    ))
+    ## For some freaking reason, there are 6 points in JUST_INPUTS_FILE and 9 get evaluated!!
+    print("Build file: ", build_file)
+    print("Training samples file: ", TRAINING_SAMPLES_FILE)
+    print("Just inputs file: ", JUST_INPUTS_FILE)
+    dakota_conf += add_evaluation_method(
+        str(JUST_INPUTS_FILE.resolve()),
+        includes_eval_id=False,
+    )
+    dakota_conf += add_continuous_variables(
+        variables=input_variables,
+    )
+    dakota_conf += add_responses([output_response])
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+
     return dakota_conf

@@ -74,9 +74,8 @@ def plot_response_curves(
     ytick_fmt: str = ".3g",
     plotting_xscale: Literal["linear", "log"] = "linear",
     plotting_yscale: Literal["linear", "log"] = "linear",
-    label_converter: Optional[
-        Callable
-    ] = None,  # NB this should remove "log" in any case
+    label_converter: Optional[Callable] = None,
+    # NB this should remove "log" in any case
 ):
     if axs is None:
         axs = plt.subplots(
@@ -214,3 +213,30 @@ def _process_y_axis_scaling(
         )
 
     return y, std, ylabel
+
+
+def plot_uq_histogram(
+    x: np.ndarray,
+    output_response: str,
+    ax: Optional[plt.Axes] = None,  # type: ignore
+    savedir: Optional[Path] = None,
+    savefmt: str = "png",
+    plotting_xscale: Literal["linear", "log"] = "linear",
+    label_converter: Optional[Callable] = None,
+    # NB this should remove "log" in any case
+):
+    x, xlabel = _process_x_axis_scaling(
+        {"x": x}, output_response, plotting_xscale, label_converter
+    )
+    if ax is None:
+        fig, ax = plt.subplots()
+    ax.hist(x, bins=50, density=False)
+    ax.set_xlabel(xlabel)
+    if savedir is None:
+        savedir = Path(".")
+    savepath = savedir / ("UQ_" + output_response + "." + savefmt)
+    plt.savefig(savepath, format=savefmt, dpi=300)
+    print(f"Figure saved in {savepath}")
+    assert savepath is not None
+    assert savepath.exists(), f"Plotting failed, savepath {savepath} does not exist"
+    return savepath

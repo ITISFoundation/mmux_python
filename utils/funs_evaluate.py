@@ -255,7 +255,7 @@ def evaluate_sumo_manual_crossvalidation(
     n_samples = len(load_data(PROCESSED_TRAINING_FILE))
     kf = KFold(n_splits=N_CROSS_VALIDATION, shuffle=True, random_state=42)
     indices = np.arange(n_samples)
-    all_observations = load_data(PROCESSED_TRAINING_FILE)[output_response]
+    all_observations = load_data(PROCESSED_TRAINING_FILE)[output_response].astype(float)
     all_predictions = np.empty(n_samples)
     all_stds = np.empty(n_samples)
 
@@ -288,7 +288,7 @@ def evaluate_sumo_manual_crossvalidation(
     return {
         output_response: all_observations.tolist(),
         output_response + "_hat": all_predictions.tolist(),
-        output_response + "_std:hat": all_stds.tolist(),
+        output_response + "_std_hat": all_stds.tolist(),
     }
 
 

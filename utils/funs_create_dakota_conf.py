@@ -511,7 +511,7 @@ def create_sumo_manual_crossvalidation(
     JUST_INPUTS_FILE = process_input_file(
         build_file,
         keep_idxs= validation_indices,
-        columns_to_keep=input_variables + [output_response],
+        columns_to_keep=input_variables,
         suffix="validation"
     )
     JUST_INPUTS_FILE = Path(shutil.move(

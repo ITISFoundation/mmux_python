@@ -337,3 +337,32 @@ def extract_predictions_gridpoints(
 
     return results
 
+def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dict[str, float]], num_samples: int, seed: Optional[int] = None):
+    """
+    Generate samples for manual UQ propagation based on user-specified distributions.
+    Returns a list of dictionaries, each representing a sample.
+    """
+    # rng = np.random.default_rng(seed=seed)
+    from scipy.stats import norm, uniform
+    samples = {}
+    for var in input_vars:
+        dist_info = distributions[var]
+        dist_type = dist_info["distribution"]
+        if dist_type == "normal":
+            mean = dist_info["mean"]
+            std = dist_info["std"]
+            samples[var] = norm.rvs(size=num_samples, loc=mean, scale=std).tolist()  # type: ignore
+        elif dist_type == "uniform":
+            min_val = dist_info["min"]
+            max_val = dist_info["max"]
+            samples[var] = uniform.rvs(size=num_samples, loc=min_val, scale=max_val-min_val).tolist()  # type: ignore
+        elif dist_type == "constant":
+            value = dist_info["value"]
+            samples[var] = [float(value)] * num_samples
+        # elif dist_type == "lognormal":
+        #     mean = dist_info["mean"]
+        #     std = dist_info["std"]
+        #     samples[var] = float(rng.lognormal(mean, std, (num_samples,)))
+        else:
+            raise ValueError(f"Unsupported distribution type: {dist_type}")
+    return samples

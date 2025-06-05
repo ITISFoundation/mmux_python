@@ -285,6 +285,36 @@ def evaluate_sumo_manual_crossvalidation(
         output_response + "_std_hat": all_stds.tolist(),
     }
 
+def evaluate_sumo(
+    run_dir: Path, 
+    PROCESSED_TRAINING_FILE: Path,
+    PROCESSED_EVALUATION_SAMPLES_FILE: Path,
+    input_vars: List[str],
+    response_var: str,
+) -> Dict[str, List[float]]:
+    """Given a training data to create a SuMo, generate it, and evaluate on the training data.
+    No callback is necessary (everything internal to Dakota).
+    """
+    # create dakota file
+    dakota_conf = create_sumo_evaluation(
+        build_file=PROCESSED_TRAINING_FILE,
+        samples_file=PROCESSED_EVALUATION_SAMPLES_FILE,
+        input_variables=input_vars,
+        output_responses=[response_var],
+    )
+
+    # run dakota
+    dakobj = DakotaObject(
+        map_object=None
+    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj.run(dakota_conf, run_dir)
+
+    results = {response_var+"_hat": get_results(run_dir / "predictions.dat", response_var).tolist()}
+    if (run_dir / "variances.dat").is_file():
+        variances = get_results(run_dir / "variances.dat", response_var + "_variance")
+        results[response_var + "_std_hat"] = np.sqrt(variances).tolist()
+
+    return results
 
 def evaluate_sumo_on_grid(
     run_dir: Path,

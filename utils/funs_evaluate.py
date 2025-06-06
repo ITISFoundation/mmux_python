@@ -14,7 +14,6 @@ from mmux_python.utils.dakota_object import DakotaObject # type: ignore
 from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation, create_sumo_manual_crossvalidation # type: ignore
 from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram # type: ignore
 from mmux_python.utils.funs_data_processing import ( # type: ignore
-    sanitize_varname,
     sanitize_varnames,
     create_samples_along_axes,
     extract_predictions_along_axes,
@@ -88,7 +87,7 @@ def evaluate_sumo_along_axes(
     """
     # sanitize variable names
     input_vars = sanitize_varnames(input_vars)
-    response_var = sanitize_varname(response_var)
+    response_var = sanitize_varnames(response_var)
     
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
@@ -162,9 +161,9 @@ def propagate_uq(
     label_converter: Optional[Callable] = None,
 ) -> List[float]:
     input_vars = sanitize_varnames(input_vars)
-    output_response = sanitize_varname(output_response)
-    means = {sanitize_varname(k): v for k, v in means.items()}
-    stds = {sanitize_varname(k): v for k, v in stds.items()}
+    output_response = sanitize_varnames(output_response)
+    means = {sanitize_varnames(k): v for k, v in means.items()}
+    stds = {sanitize_varnames(k): v for k, v in stds.items()}
 
     # create dakota file
     dakota_conf = create_uq_propagation(
@@ -233,7 +232,7 @@ def evaluate_sumo_crossvalidation(
     N_CROSS_VALIDATION: int = 5,
 ):
     input_vars = sanitize_varnames(input_vars)
-    output_response = sanitize_varname(output_response)
+    output_response = sanitize_varnames(output_response)
 
     dakota_conf = create_sumo_crossvalidation(
         PROCESSED_TRAINING_FILE, 
@@ -261,7 +260,7 @@ def evaluate_sumo_manual_crossvalidation(
     N_CROSS_VALIDATION: int = 5,
 ):
     input_vars = sanitize_varnames(input_vars)
-    output_response = sanitize_varname(output_response)
+    output_response = sanitize_varnames(output_response)
 
     n_samples = len(load_data(PROCESSED_TRAINING_FILE))
     kf = KFold(n_splits=N_CROSS_VALIDATION, shuffle=True, random_state=42)
@@ -310,7 +309,7 @@ def evaluate_sumo(
     response_var: str,
 ) -> Dict[str, List[float]]:
     input_vars = sanitize_varnames(input_vars)
-    response_var = sanitize_varname(response_var)
+    response_var = sanitize_varnames(response_var)
 
     """Given a training data to create a SuMo, generate it, and evaluate on the training data.
     No callback is necessary (everything internal to Dakota).
@@ -352,7 +351,7 @@ def evaluate_sumo_on_grid(
 ) -> Dict[str, List[float]]:
     grid_vars = sanitize_varnames(grid_vars)
     input_vars = sanitize_varnames(input_vars)
-    response_var = sanitize_varname(response_var)
+    response_var = sanitize_varnames(response_var)
 
     """Given a training data to create a SuMo, generate it, and evaluate on a grid of points.
     The grid is created by sweeping the variables in `grid_vars` over their min and max values,

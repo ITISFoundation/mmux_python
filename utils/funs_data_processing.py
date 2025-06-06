@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable, Dict, Any
+from typing import List, Optional, Callable, Dict, TypeVar, overload
 import os
 import json
 import numpy as np
@@ -7,24 +7,16 @@ from pathlib import Path
 import copy
 import re
 
-def sanitize_varname(varname: str) -> str:
-    """Sanitize variable names by replacing spaces and non-alphanumeric characters with underscores."""
-    return re.sub(r'[^0-9a-zA-Z_*-+/]', '_', varname.replace(' ', '_'))
-
-def sanitize_varnames(varnames):
-    return [sanitize_varname(v) for v in varnames]
-
-def sanitize_varnames_dict(dt: Dict[str, Any]) -> Dict[str, Any]:
-    """Sanitize variable names in a dictionary."""
-    return {sanitize_varname(k): v for k, v in dt.items()}
-
-def sanitize_varnames_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Sanitize variable names in a DataFrame."""
-    df = df.copy()
-    df.columns = sanitize_varnames(df.columns.tolist())
-    return df
-
 def _parse_data(file: str | Path) -> List[List[str]]:
+    """
+    Parse a space-delimited text file into a list of lists.
+    
+    Args:
+        file: Path to the file to parse
+        
+    Returns:
+        List of lines, where each line is split into a list of values
+    """
     data = []
     with open(file) as f:
         data = [line.strip().split() for line in f]
@@ -325,11 +317,15 @@ def create_grid_samples(
     input_vars = sanitize_varnames(input_vars)
     grid_vars = sanitize_varnames(grid_vars)
     
+    print("Parameters to create grid: ")
     print(mins, maxs, n_points_per_dimension)
+    print("Grid vars: ", grid_vars)
+    print("input vars: ", input_vars)
+    
     grid = np.meshgrid(
         *[
             np.linspace(mins[i], maxs[i], n_points_per_dimension[i])
-            if grid_vars[i] in input_vars
+            if input_vars[i] in grid_vars
             else means[i]
             for i in range(len(n_points_per_dimension))
         ]
@@ -400,3 +396,65 @@ def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dic
         else:
             raise ValueError(f"Unsupported distribution type: {dist_type}")
     return samples
+
+
+T = TypeVar('T')
+
+@overload
+def sanitize_varnames(input_data: str) -> str: ...
+
+@overload
+def sanitize_varnames(input_data: List[str]) -> List[str]: ...
+
+@overload
+def sanitize_varnames(input_data: Dict[str, T]) -> Dict[str, T]: ...
+
+@overload
+def sanitize_varnames(input_data: pd.DataFrame) -> pd.DataFrame: ...
+
+def sanitize_varnames(input_data):
+    """
+    Sanitize variable names by replacing spaces and non-alphanumeric characters with underscores.
+    This function handles different input types:
+    - str: sanitizes a single variable name
+    - list/iterable: sanitizes each item in the list
+    - dict: sanitizes the keys of the dictionary
+    - pd.DataFrame: sanitizes the column names
+    
+    Args:
+        input_data: The data to sanitize (string, list, dict, or DataFrame)
+        
+    Returns:
+        Sanitized version of the input data (same type as input)
+    """
+    # Helper function for sanitizing a single string
+    def _sanitize_single(varname: str) -> str:
+        # Replace spaces with underscores and then replace any remaining non-alphanumeric chars (except _*-+/)
+        return re.sub(r'[^0-9a-zA-Z_*-+/]', '_', varname.replace(' ', '_'))
+    
+    # Handle different input types
+    if isinstance(input_data, str):
+        return _sanitize_single(input_data)
+    elif isinstance(input_data, pd.DataFrame):
+        df = input_data.copy()  # Create a copy to avoid modifying the original DataFrame
+        df.columns = [_sanitize_single(col) for col in df.columns]
+        return df
+    elif isinstance(input_data, dict):
+        # Recursively handle dictionaries
+        result = {}
+        for k, v in input_data.items():
+            sanitized_key = _sanitize_single(k)
+            if isinstance(v, dict):
+                result[sanitized_key] = sanitize_varnames(v)
+            else:
+                result[sanitized_key] = v
+        return result
+    elif hasattr(input_data, '__iter__') and not isinstance(input_data, (str, bytes)):
+        return [_sanitize_single(v) for v in input_data]
+    else:
+        raise TypeError(f"Unsupported input type: {type(input_data)}")
+
+# Aliases for backward compatibility
+sanitize_varname = sanitize_varnames  # For single string input
+sanitize_varnames_dict = sanitize_varnames  # For dictionary input
+sanitize_varnames_df = sanitize_varnames  # For DataFrame input

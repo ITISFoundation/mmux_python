@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable, Dict
+from typing import List, Optional, Callable, Dict, Any
 import os
 import json
 import numpy as np
@@ -14,6 +14,16 @@ def sanitize_varname(varname: str) -> str:
 def sanitize_varnames(varnames):
     return [sanitize_varname(v) for v in varnames]
 
+def sanitize_varnames_dict(dt: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize variable names in a dictionary."""
+    return {sanitize_varname(k): v for k, v in dt.items()}
+
+def sanitize_varnames_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Sanitize variable names in a DataFrame."""
+    df = df.copy()
+    df.columns = sanitize_varnames(df.columns.tolist())
+    return df
+
 def _parse_data(file: str | Path) -> List[List[str]]:
     data = []
     with open(file) as f:
@@ -22,6 +32,7 @@ def _parse_data(file: str | Path) -> List[List[str]]:
 
 
 def _parse_json_dict(file: str | Path):
+    print("DEPRECATED! _parse_json_dict was used with the old ParallelRunner input files")
     with open(file) as f:
         data_dict = json.load(f)["tasks"]
 
@@ -61,13 +72,13 @@ def get_variable_names(file: str | Path) -> List[str]:
     _, ext = os.path.splitext(file)
     if ext == ".dat" or ext == ".txt":
         lines = _parse_data(file)
-        return lines[0]
+        return sanitize_varnames(lines[0])
     elif ext == ".json":
         columns, data = _parse_json_dict(file)
-        return columns
+        return sanitize_varnames(columns)
     elif ext == ".csv":
         df = pd.read_csv(file)
-        return df.columns.tolist()
+        return sanitize_varnames(df.columns.tolist())
     else:
         raise ValueError(f"File {file} is not a DAT / TXT / JSON / CSV file")
 
@@ -85,16 +96,17 @@ def load_data(
         _, ext = os.path.splitext(file)
         if ext == ".dat" or ext == ".txt":
             lines = _parse_data(file)
-            dfs.append(pd.DataFrame(lines[1:], columns=lines[0]))
+            dfs.append(pd.DataFrame(lines[1:], columns=sanitize_varnames(lines[0])))
         elif ext == ".json":
             columns, data = _parse_json_dict(file)
-            dfs.append(pd.DataFrame(data=data, columns=columns))
+            dfs.append(pd.DataFrame(data=data, columns=sanitize_varnames(columns)))
         elif ext == ".csv":
             dfs.append(pd.read_csv(file))
         else:
             raise ValueError(f"File {file} is not a DAT / TXT / JSON / CSV file")
 
     df = pd.concat(dfs, ignore_index=True)
+    df = sanitize_varnames_df(df)
     return df
 
 
@@ -223,6 +235,9 @@ def create_samples_along_axes(
     if not sweep_file_name.endswith(".csv"):
         sweep_file_name += ".csv"
     SWEEP_INPUT_FILE = run_dir / sweep_file_name
+    
+    data = sanitize_varnames_df(data)
+    input_vars = sanitize_varnames(input_vars)
 
     assert np.all(
         [var in data.columns for var in input_vars]
@@ -249,7 +264,7 @@ def create_samples_along_axes(
 
 
 def extract_predictions_along_axes(
-    run_dir: Path, RESPONSE: str, input_vars: List[str], NSAMPLESPERVAR: int
+    run_dir: Path, RESPONSE: str, input_vars: List[str], NSAMPLESPERVAR: int,
 ) -> Dict[str, Dict[str, np.ndarray]]:
     """
     To retrieve results generated with 'create_samples_along_axes'
@@ -262,6 +277,7 @@ def extract_predictions_along_axes(
         std_hat = np.sqrt(
             get_results(run_dir / "variances.dat", RESPONSE + "_variance")
         )
+    input_vars = sanitize_varnames(input_vars)
 
     results = {}
     for i, variable in enumerate(input_vars):
@@ -277,7 +293,6 @@ def extract_predictions_along_axes(
 
     return results
 
-## TODO how to deal w constant variables??
 def create_grid_samples(
     run_dir: Path,
     grid_vars: List[str],
@@ -285,13 +300,10 @@ def create_grid_samples(
     mins: List[float],
     means: List[float],
     maxs: List[float],
-    # TODO: we should generate SuMo with ALL dimensions, and the other vars simply stay constant (at mid value)
-    # FIXME: for now we only use the 2D inputs (so ofc will be less accurate) for SuMo generation & propagation
     n_points_per_dimension: List[int],
     downscaling_factor: Optional[float] = None,
     gridpoints_file_name: str = "grid_input.csv",
 ) -> Path:
-    
     """Generate grid points (either for sampling, or to evaluate the SuMo upon and display)"""
     GRIDPOINTS_INPUT_FILE = run_dir / gridpoints_file_name
     if len(input_vars) != len(n_points_per_dimension):
@@ -309,6 +321,9 @@ def create_grid_samples(
         n_points_per_dimension = [
             int(np.ceil(n / downscaling_factor)) for n in n_points_per_dimension
         ]
+    
+    input_vars = sanitize_varnames(input_vars)
+    grid_vars = sanitize_varnames(grid_vars)
     
     print(mins, maxs, n_points_per_dimension)
     grid = np.meshgrid(
@@ -338,6 +353,8 @@ def extract_predictions_gridpoints(
     and, if the SuMo provides it, "std_hat", i.e. the sqrt of predicted variance at sample points
     """
     predictions_df = load_data(run_dir / "predictions.dat")
+    input_vars = sanitize_varnames(input_vars)
+    RESPONSE = sanitize_varname(RESPONSE)
     
     y_hat = get_results(run_dir / "predictions.dat", RESPONSE)
 
@@ -356,6 +373,9 @@ def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dic
     Generate samples for manual UQ propagation based on user-specified distributions.
     Returns a list of dictionaries, each representing a sample.
     """
+    input_vars = sanitize_varnames(input_vars)
+    distributions = {sanitize_varname(k): sanitize_varnames_dict(v) for k, v in distributions.items()}
+    
     # rng = np.random.default_rng(seed=seed)
     from scipy.stats import norm, uniform
     samples = {}

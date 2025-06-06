@@ -86,8 +86,10 @@ def evaluate_sumo_along_axes(
     Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
     Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
     """
+    # sanitize variable names
     input_vars = sanitize_varnames(input_vars)
     response_var = sanitize_varname(response_var)
+    
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_SWEEP_INPUT_FILE = create_samples_along_axes(

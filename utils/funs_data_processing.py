@@ -5,7 +5,14 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import copy
+import re
 
+def sanitize_varname(varname: str) -> str:
+    """Sanitize variable names by replacing spaces and non-alphanumeric characters with underscores."""
+    return re.sub(r'[^0-9a-zA-Z_*-+/]', '_', varname.replace(' ', '_'))
+
+def sanitize_varnames(varnames):
+    return [sanitize_varname(v) for v in varnames]
 
 def _parse_data(file: str | Path) -> List[List[str]]:
     data = []
@@ -117,20 +124,26 @@ def process_input_file(
         files = [Path(files)]
     df = load_data(files)
     df = _filter_data(df, **kwargs)
+    
 
     if custom_operations:
         df: pd.DataFrame = custom_operations(df)
         
     if columns_to_keep:
-        columns_to_keep = [c for c in columns_to_keep if c in df.columns]
+        columns_to_keep = [sanitize_varname(c) for c in columns_to_keep if c in df.columns or sanitize_varname(c) in df.columns]
+        df.columns = [sanitize_varname(col) for col in df.columns]
         df = df[columns_to_keep]
     else:
         for c in columns_to_remove:
-            if c in df.columns:
-                df.drop(c, axis=1, inplace=True)
+            c_sanitized = sanitize_varname(c)
+            if c_sanitized in df.columns:
+                df.drop(c_sanitized, axis=1, inplace=True)
             else:
                 print(f"Column {c} (to be removed) not found in the dataframe")
 
+    # Replace spaces and special chars in column names
+    df.columns = [sanitize_varname(col) for col in df.columns]
+    
     if r"%eval_id" in df.columns:
         df[r"%eval_id"] = np.arange(1, len(df) + 1)
 
@@ -296,7 +309,8 @@ def create_grid_samples(
         n_points_per_dimension = [
             int(np.ceil(n / downscaling_factor)) for n in n_points_per_dimension
         ]
-        
+    
+    print(mins, maxs, n_points_per_dimension)
     grid = np.meshgrid(
         *[
             np.linspace(mins[i], maxs[i], n_points_per_dimension[i])

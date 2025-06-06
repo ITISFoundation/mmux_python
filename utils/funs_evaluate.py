@@ -1,6 +1,8 @@
 from pathlib import Path
 import datetime
 import os
+import re
+import uuid
 import pandas as pd
 import numpy as np
 import shutil
@@ -12,6 +14,8 @@ from mmux_python.utils.dakota_object import DakotaObject # type: ignore
 from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation, create_sumo_manual_crossvalidation # type: ignore
 from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram # type: ignore
 from mmux_python.utils.funs_data_processing import ( # type: ignore
+    sanitize_varname,
+    sanitize_varnames,
     create_samples_along_axes,
     extract_predictions_along_axes,
     create_grid_samples,
@@ -25,7 +29,8 @@ def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
     ## part 1 - setup
     main_runs_dir = script_dir / "runs"
     current_time = datetime.datetime.now().strftime("%Y%m%d.%H%M%S%d")
-    temp_dir = main_runs_dir / "_".join(["dakota", current_time, dir_name])
+    uid = uuid.uuid4().hex
+    temp_dir = main_runs_dir / "_".join(["dakota", current_time, uid, dir_name])
     print(str(temp_dir))
     os.makedirs(temp_dir, exist_ok=True)
     print("temp_dir: ", temp_dir)
@@ -61,7 +66,6 @@ def retrieve_csv_result(
 
     return result.iloc[0].to_dict()
 
-
 def evaluate_sumo_along_axes(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
@@ -82,6 +86,8 @@ def evaluate_sumo_along_axes(
     Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
     Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
     """
+    input_vars = sanitize_varnames(input_vars)
+    response_var = sanitize_varname(response_var)
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_SWEEP_INPUT_FILE = create_samples_along_axes(
@@ -153,6 +159,10 @@ def propagate_uq(
     xscale: Literal["linear", "log"] = "linear",
     label_converter: Optional[Callable] = None,
 ) -> List[float]:
+    input_vars = sanitize_varnames(input_vars)
+    output_response = sanitize_varname(output_response)
+    means = {sanitize_varname(k): v for k, v in means.items()}
+    stds = {sanitize_varname(k): v for k, v in stds.items()}
 
     # create dakota file
     dakota_conf = create_uq_propagation(
@@ -173,7 +183,6 @@ def propagate_uq(
     return x.tolist()
 
 def _parse_crossvalidation_outputlogs(log_output: str, N_CROSS_VALIDATION: int):
-    import re
 
     variable_name_pattern = (
         f"Surrogate quality metrics \({N_CROSS_VALIDATION}-fold CV\) for (\w+):"
@@ -221,6 +230,9 @@ def evaluate_sumo_crossvalidation(
     output_response: str,
     N_CROSS_VALIDATION: int = 5,
 ):
+    input_vars = sanitize_varnames(input_vars)
+    output_response = sanitize_varname(output_response)
+
     dakota_conf = create_sumo_crossvalidation(
         PROCESSED_TRAINING_FILE, 
         input_vars,
@@ -246,6 +258,9 @@ def evaluate_sumo_manual_crossvalidation(
     output_response: str,
     N_CROSS_VALIDATION: int = 5,
 ):
+    input_vars = sanitize_varnames(input_vars)
+    output_response = sanitize_varname(output_response)
+
     n_samples = len(load_data(PROCESSED_TRAINING_FILE))
     kf = KFold(n_splits=N_CROSS_VALIDATION, shuffle=True, random_state=42)
     indices = np.arange(n_samples)
@@ -292,6 +307,9 @@ def evaluate_sumo(
     input_vars: List[str],
     response_var: str,
 ) -> Dict[str, List[float]]:
+    input_vars = sanitize_varnames(input_vars)
+    response_var = sanitize_varname(response_var)
+
     """Given a training data to create a SuMo, generate it, and evaluate on the training data.
     No callback is necessary (everything internal to Dakota).
     """
@@ -330,6 +348,10 @@ def evaluate_sumo_on_grid(
     # label_converter: Optional[Callable] = None,
     # MAKEPLOT: bool = False,
 ) -> Dict[str, List[float]]:
+    grid_vars = sanitize_varnames(grid_vars)
+    input_vars = sanitize_varnames(input_vars)
+    response_var = sanitize_varname(response_var)
+
     """Given a training data to create a SuMo, generate it, and evaluate on a grid of points.
     The grid is created by sweeping the variables in `grid_vars` over their min and max values,
     while the other variables in `input_vars` are set to their central values.

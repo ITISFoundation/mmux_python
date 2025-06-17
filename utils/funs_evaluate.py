@@ -239,14 +239,14 @@ def evaluate_sumo_manual_crossvalidation(
     input_vars = sanitize_varnames(input_vars)
     output_response = sanitize_varnames(output_response)
 
-    n_samples = len(load_data(PROCESSED_TRAINING_FILE))
-    kf = KFold(n_splits=N_CROSS_VALIDATION, shuffle=True, random_state=42)
-    indices = np.arange(n_samples)
     all_observations = load_data(PROCESSED_TRAINING_FILE)[output_response].astype(float)
+    n_samples = len(all_observations)
+    indices = np.arange(n_samples)
     all_predictions = np.empty(n_samples)
     all_stds = np.empty(n_samples)
+    kf = KFold(n_splits=N_CROSS_VALIDATION, shuffle=True, random_state=42)
 
-    for fold, (train_idx, val_idx) in enumerate(kf.split(indices)):
+    for fold, (_, val_idx) in enumerate(kf.split(indices)):
         fold_run_dir = run_dir / f"fold_{fold}"
         os.makedirs(fold_run_dir, exist_ok=True)
 

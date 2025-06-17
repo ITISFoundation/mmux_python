@@ -70,6 +70,7 @@ def evaluate_sumo_along_axes(
     PROCESSED_TRAINING_FILE: Path,
     input_vars: List[str],
     response_var: str,
+    cut_values: Optional[Dict[str, float]] = None,
     sumo_import_name: Optional[str] = None,
     sumo_export_name: Optional[str] = None,
     NSAMPLESPERVAR: int = 21,
@@ -88,11 +89,12 @@ def evaluate_sumo_along_axes(
     # sanitize variable names
     input_vars = sanitize_varnames(input_vars)
     response_var = sanitize_varnames(response_var)
+    cut_values = sanitize_varnames(cut_values) if cut_values else None
     
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_SWEEP_INPUT_FILE = create_samples_along_axes(
-        run_dir, data, input_vars, NSAMPLESPERVAR
+        run_dir, data, input_vars, NSAMPLESPERVAR, cut_values=cut_values
     )
 
     if sumo_import_name:
@@ -108,7 +110,6 @@ def evaluate_sumo_along_axes(
         build_file=PROCESSED_TRAINING_FILE,
         sumo_import_name=sumo_import_name,
         sumo_export_name=sumo_export_name,
-        ### TODO once this works, try to get it to work wo evaluation (or just one sample, if not possible?)
         samples_file=PROCESSED_SWEEP_INPUT_FILE,
         input_variables=input_vars,
         output_responses=[response_var],
@@ -119,33 +120,9 @@ def evaluate_sumo_along_axes(
         map_object=None
     )  # no need to evaluate any function (only the SuMo, internal to Dakota)
     dakobj.run(dakota_conf, run_dir)
-
-    if sumo_export_name:
-        models_dir = run_dir.parent / "models"
-        os.makedirs(models_dir, exist_ok=True)
-        for file in run_dir.glob(f"{sumo_export_name}*"):
-            shutil.copy(file, models_dir)
-            # Also save input and output variables to a JSON file
-            json_data = {"input_vars": input_vars, "output_var": response_var}
-            json_save_path = models_dir / f"{file.name}.json"
-            with open(json_save_path, "w") as json_file:
-                json.dump(json_data, json_file, indent=4)
-
     results = extract_predictions_along_axes(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
     )
-
-    if MAKEPLOT:
-        plot_response_curves(
-            results,
-            response_var,
-            input_vars,
-            savedir=run_dir,
-            plotting_xscale=xscale,
-            plotting_yscale=yscale,
-            label_converter=label_converter,
-        )
-
     return results
 
 ### TODO refactor in new MMUX-compatible version (like above)
@@ -341,6 +318,7 @@ def evaluate_sumo_on_grid(
     grid_vars: List[str],
     input_vars: List[str],
     response_var: str,
+    cut_values: Optional[Dict[str, float]] = None,
     # sumo_import_name: Optional[str] = None,
     # sumo_export_name: Optional[str] = None,
     NSAMPLESPERVAR: int = 21,
@@ -349,10 +327,6 @@ def evaluate_sumo_on_grid(
     # label_converter: Optional[Callable] = None,
     # MAKEPLOT: bool = False,
 ) -> Dict[str, List[float]]:
-    grid_vars = sanitize_varnames(grid_vars)
-    input_vars = sanitize_varnames(input_vars)
-    response_var = sanitize_varnames(response_var)
-
     """Given a training data to create a SuMo, generate it, and evaluate on a grid of points.
     The grid is created by sweeping the variables in `grid_vars` over their min and max values,
     while the other variables in `input_vars` are set to their central values.
@@ -363,6 +337,12 @@ def evaluate_sumo_on_grid(
     Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
     Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
     """
+    
+    grid_vars = sanitize_varnames(grid_vars)
+    input_vars = sanitize_varnames(input_vars)
+    response_var = sanitize_varnames(response_var)
+    cut_values = sanitize_varnames(cut_values) if cut_values else None
+
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_GRIDPOINTS_INPUT_FILE = create_grid_samples(
@@ -370,7 +350,7 @@ def evaluate_sumo_on_grid(
         grid_vars = grid_vars,
         input_vars = input_vars,
         mins = [data[var].min() for var in input_vars],
-        means = [data[var].mean() for var in input_vars],
+        cut_values = [cut_values[var] for var in input_vars] if cut_values else [data[var].mean() for var in input_vars],
         maxs = [data[var].max() for var in input_vars],
         n_points_per_dimension=[NSAMPLESPERVAR] * len(input_vars),
         # downscaling_factor=4, ## TESTING ## DOES NOT WORK ATM!!

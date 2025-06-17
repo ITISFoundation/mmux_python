@@ -221,6 +221,7 @@ def create_samples_along_axes(
     data: pd.DataFrame,
     input_vars: List[str],
     NSAMPLESPERVAR: int,
+    cut_values: Optional[Dict[str, float]] = None,
     sweep_file_name: str = "sweep_input",
 ) -> Path:
     # create sweeps data
@@ -238,11 +239,12 @@ def create_samples_along_axes(
     assert len(data.columns) == len(
         input_vars
     ), "Data columns do not match input variables"
-    avgs, mins, maxs = data.mean().values, data.min().values, data.max().values
+    mins, maxs = data.min().values, data.max().values
+    cut_value_list = [cut_values[var] for var in input_vars] if cut_values else data.mean().values
 
     sample_list = []
     for i, var in enumerate(input_vars):
-        sample = copy.deepcopy(avgs)
+        sample = copy.deepcopy(cut_value_list)
         ## use avg values for all variables but for the target one
         for j in range(NSAMPLESPERVAR):
             val = mins[i] + (maxs[i] - mins[i]) * j / (NSAMPLESPERVAR - 1)
@@ -290,7 +292,7 @@ def create_grid_samples(
     grid_vars: List[str],
     input_vars: List[str],
     mins: List[float],
-    means: List[float],
+    cut_values: List[float],
     maxs: List[float],
     n_points_per_dimension: List[int],
     downscaling_factor: Optional[float] = None,
@@ -326,7 +328,7 @@ def create_grid_samples(
         *[
             np.linspace(mins[i], maxs[i], n_points_per_dimension[i])
             if input_vars[i] in grid_vars
-            else means[i]
+            else cut_values[i]
             for i in range(len(n_points_per_dimension))
         ]
     )

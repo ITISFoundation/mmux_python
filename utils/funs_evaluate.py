@@ -6,13 +6,11 @@ import uuid
 import pandas as pd
 import numpy as np
 import shutil
-import json
 from typing import List, Literal, Optional, Callable, Dict
 from sklearn.model_selection import KFold
 
 from mmux_python.utils.dakota_object import DakotaObject # type: ignore
 from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation, create_sumo_manual_crossvalidation # type: ignore
-from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram # type: ignore
 from mmux_python.utils.funs_data_processing import ( # type: ignore
     sanitize_varnames,
     create_samples_along_axes,

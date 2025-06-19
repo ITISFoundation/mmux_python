@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import dakota.environment as dakenv
 import logging
-import wiofiles as wio
+import mmux_python.utils.wiofiles as wio
 import sys
 import concurrent.futures
 import functools

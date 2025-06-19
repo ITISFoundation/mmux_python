@@ -114,9 +114,7 @@ def evaluate_sumo_along_axes(
     )
 
     # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
     results = extract_predictions_along_axes(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
@@ -151,9 +149,7 @@ def propagate_uq(
     )
 
     # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
     x = get_results(run_dir / f"predictions.dat", output_response)
     return x.tolist()
@@ -216,9 +212,7 @@ def evaluate_sumo_crossvalidation(
         N_CROSS_VALIDATION=N_CROSS_VALIDATION,
     )
         # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
     ## TODO I was parsing from the stdout. How to do it now?
     log_output = ""
@@ -257,7 +251,7 @@ def evaluate_sumo_manual_crossvalidation(
             validation_indices=val_idx.tolist(),
             dakota_conf_file= fold_run_dir / "dakota_config.in",
         )
-        dakobj = DakotaObject(map_object=None)
+        dakobj = DakotaObject()
         dakobj.run(dakota_conf, fold_run_dir)
 
         # Extract predictions for this fold and store in the correct positions
@@ -298,9 +292,7 @@ def evaluate_sumo(
     )
 
     # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
 
     results = {response_var+"_hat": get_results(run_dir / "predictions.dat", response_var).tolist()}
@@ -365,10 +357,7 @@ def evaluate_sumo_on_grid(
         output_responses=[response_var],
     )
 
-    # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
 
     results = extract_predictions_gridpoints(

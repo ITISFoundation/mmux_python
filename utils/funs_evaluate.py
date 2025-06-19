@@ -368,22 +368,11 @@ def evaluate_sumo_on_grid(
         reshape_indices = [NPOINTSPERDIMENSION[i] if input_vars[i] in grid_vars else 1 
                                 for i in range(len(input_vars))]
         output = output.reshape(reshape_indices)
-        transpose_indices = [input_vars.index(grid_vars[i]) for i in range(len(grid_vars))]
         input_vars_in_grid_vars = [var for var in input_vars if var in grid_vars ]
         squeezed_transpose_indices = [input_vars_in_grid_vars.index(grid_vars[i]) for i in range(len(grid_vars))]
-        if sum(transpose_indices) == 1: #and transpose_indices[0] == 0:
-            # raise ValueError("Transpose indices should be [0,1] or [1,0] for 2D grids, but got", transpose_indices)
-            squeezed_transpose_indices = squeezed_transpose_indices[::-1]
-            ### TODO the only one that does not work is YX. XZ with the above condition works.
-            ### this is just so weird... in the print, XY and YX are transposed, as well as XZ and ZX. 
-            ### However, in the frontend, XY and YX are not each others transposed, but XZ and ZX are.
-            ### in fact, XY and YX in the frontend are NOT the same as in the backend (after reshaping)
-        else:
-            # raise ValueError("Transpose indices should NOT be [0,1] or [1,0] for 2D grids, but got", transpose_indices)
-            pass
-        final_output = output.squeeze().transpose(squeezed_transpose_indices[::-1]) # ZX, XZ, YZ, ZY work; but not YX, XY. Why??? 
-        raise ValueError("reshape indices", reshape_indices, "output.shape", output.shape, "input_vars", input_vars, "grid_vars", grid_vars, "transpose indices", transpose_indices, "squeezed output shape", output.squeeze().shape, "final output shape", final_output.shape, "\nfinal output:", final_output[:3, :3])
-        results[response_var] = final_output.flatten().tolist()
+        final_output = output.squeeze().transpose(squeezed_transpose_indices[::-1]).tolist() # ZX, XZ, YZ, ZY work; but not YX, XY. Why??? 
+        # raise ValueError("reshape indices", reshape_indices, "output.shape", output.shape, "input_vars", input_vars, "grid_vars", grid_vars, "transpose indices", transpose_indices, "squeezed output shape", output.squeeze().shape, "final output shape", final_output)#.shape, "\nfinal output:", final_output[:3, :3])
+        results[response_var] = final_output
         
     return results
 

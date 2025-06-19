@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Callable, List, Dict, Any, Tuple, Optional
 import uuid
 import traceback
 import contextlib
@@ -8,6 +8,8 @@ import dakota.environment as dakenv
 import logging
 import wiofiles as wio
 import sys
+import concurrent.futures
+import functools
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +25,41 @@ def working_directory(path):
         os.chdir(prev_cwd)
 
 
+# Static function to execute Dakota - needs to be at module level to be picklable
+def _dak_exec_static(func, conf):
+    """Static version of dak_exec that can be pickled for multiprocessing."""
+    study = dakenv.study(callbacks={'map': func}, input_string=conf) # type: ignore
+    stdoutstr, stderrstr = None, None
+    with wio.capture_to_file(stdout='./stdout', stderr='./stderr') as (stdout, stderr):
+        study.execute()
+    with open(stdout) as outf, open(stderr) as errf:
+        stdoutstr = outf.read()
+        stderrstr = errf.read()
+    del study
+    return stdoutstr, stderrstr
+
+
+# Wrapper function for model_callback that can be pickled
+def _model_callback_wrapper(param_sets: List[Dict[str, Any]], 
+                           evaluate_func: Callable[[List[Dict[str, Any]]], List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """Wrapper for model_callback that takes only serializable arguments."""
+    try:
+        logger.info("Into model_callback wrapper")
+        obj_sets = evaluate_func(param_sets)
+        
+        all_response_labels = [dak_input.get("function_labels", []) for dak_input in param_sets]
+        
+        dak_outputs = [
+            {"fns": [obj_set[response_label] for response_label in response_labels]}
+            for obj_set, response_labels in zip(obj_sets, all_response_labels)
+        ]
+        return dak_outputs
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+
+
 class Map:
-    ## TODO should the "model" Callable be given here or in DakotaObject?
     def __init__(self, model: Callable, n_runners: int = 1) -> None:
         logger.info("Creating caller map")
         self.model = model
@@ -32,7 +67,15 @@ class Map:
         self.map_uuid = None
         self.n_runners = n_runners
         logger.info(f"Optimizer uuid is {self.uuid}")
-        pass
+        
+        # Check if model is picklable
+        if n_runners > 1:
+            import pickle
+            try:
+                pickle.dumps(model)
+            except (TypeError, pickle.PicklingError):
+                logger.warning("The model function is not picklable. Forcing n_runners=1")
+                self.n_runners = 1
 
     def evaluate(self, params_set: List[dict]):
         outputs_set = []
@@ -44,19 +87,26 @@ class Map:
         if self.n_runners == 1:
             for param_set in params_set:
                 outputs_set.append(self.model(**param_set))
-            # raise ValueError(f"This is the output: {outputs_set}")
         else:
-            # TODO use multiprocessing; return in strict order
-            raise NotImplementedError(f"params_set: {params_set}")
+            # Use ProcessPoolExecutor for parallel evaluation
+            with concurrent.futures.ProcessPoolExecutor(max_workers=self.n_runners) as executor:
+                # Submit each parameter set as a separate task
+                futures = [executor.submit(self._run_single_model, param_set) for param_set in params_set]
+                # Collect results in order
+                outputs_set = [future.result() for future in futures]
 
         return outputs_set
+        
+    def _run_single_model(self, param_set):
+        """Helper method to run a single model evaluation - can be used with ProcessPoolExecutor."""
+        return self.model(**param_set)
 
 
 class DakotaObject:
-    def __init__(self, map_object: Map | None) -> None:
+    def __init__(self, map_object: Optional[Map] = None) -> None:
         self.map_object = map_object
         logger.info("DakotaObject created")
-
+        
     def model_callback(self, dak_inputs: List[dict]) -> List[dict]:
         try:
             logger.info("Into model_callback")
@@ -94,8 +144,17 @@ class DakotaObject:
     def run(self, dakota_conf: str, output_dir: Path):
         print("Starting dakota")
         with working_directory(output_dir):
+            # Create a picklable version of the callback
+            if self.map_object:
+                # Instead of passing the instance method directly, we pass the 
+                # necessary data to the static function
+                callback = functools.partial(_model_callback_wrapper, 
+                                           evaluate_func=self.map_object.evaluate)
+            else:
+                callback = None
+            
             stdout, stderr = self.future_exec(
-                func=self.model_callback if self.map_object else None,
+                func=callback,
                 conf=dakota_conf,
             )
             print("Dakota run finished")
@@ -106,20 +165,9 @@ class DakotaObject:
                     f_err.write(stderr)
             if stderr:
                 print(stderr, file=sys.stderr)
-    
-    def dak_exec(self, func, conf):
-        study = dakenv.study(callbacks={'map': func}, input_string=conf) # type: ignore
-        stdoutstr, stderrstr = None, None
-        with wio.capture_to_file(stdout='./stdout', stderr='./stderr') as (stdout, stderr):
-            study.execute()
-        with open(stdout) as outf, open(stderr) as errf:
-            stdoutstr = outf.read()
-            stderrstr = errf.read()
-        del study
-        return stdoutstr, stderrstr
-
+                
     def future_exec(self, func, conf):
-        import concurrent.futures
+        # Use the static function directly rather than the instance method
         with concurrent.futures.ProcessPoolExecutor(1) as pool:
-            future = pool.submit(self.dak_exec, func, conf)
+            future = pool.submit(_dak_exec_static, func, conf)
         return future.result()

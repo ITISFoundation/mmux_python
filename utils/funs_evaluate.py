@@ -327,7 +327,7 @@ def evaluate_sumo_on_grid(
     Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
     Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
     """
-    NPOINTSPERDIMENSION = [10, 19, 25, 32]
+    NPOINTSPERDIMENSION = [NSAMPLESPERVAR] * len(input_vars)  # default number of points per dimension
     grid_vars = sanitize_varnames(grid_vars)
     input_vars = sanitize_varnames(input_vars)
     response_var = sanitize_varnames(response_var)
@@ -365,14 +365,17 @@ def evaluate_sumo_on_grid(
     
     if len(grid_vars) == 2: ## this is not necessary for 3D
         output = np.array(results[response_var])
-        reshape_indices = [NPOINTSPERDIMENSION[i] if input_vars[i] in grid_vars else 1 
-                                for i in range(len(input_vars))]
-        output = output.reshape(reshape_indices)
+        reshape_indices = [NPOINTSPERDIMENSION[i] for i in range(len(input_vars)) if input_vars[i] in grid_vars ]
+        if grid_vars[0] in input_vars[:2] and grid_vars[1] in input_vars[:2]:
+            ## reshape fills in row order. For some reason, this needs to be done reversed in XY / YX cases
+            ## but NOT for any other input combination...
+            output = output.reshape(reshape_indices[::-1]).T  
+        else:
+            output = output.reshape(reshape_indices)
         input_vars_in_grid_vars = [var for var in input_vars if var in grid_vars ]
-        squeezed_transpose_indices = [input_vars_in_grid_vars.index(grid_vars[i]) for i in range(len(grid_vars))]
-        final_output = output.squeeze().transpose(squeezed_transpose_indices[::-1]).tolist() # ZX, XZ, YZ, ZY work; but not YX, XY. Why??? 
-        # raise ValueError("reshape indices", reshape_indices, "output.shape", output.shape, "input_vars", input_vars, "grid_vars", grid_vars, "transpose indices", transpose_indices, "squeezed output shape", output.squeeze().shape, "final output shape", final_output)#.shape, "\nfinal output:", final_output[:3, :3])
-        results[response_var] = final_output
+        transpose_indices = [input_vars_in_grid_vars.index(grid_vars[i]) for i in range(len(grid_vars))]
+        final_output = output.transpose(transpose_indices[::-1]) # ZX, XZ, YZ, ZY work; but not YX, XY. Why??? 
+        results[response_var] = final_output.tolist()
         
     return results
 

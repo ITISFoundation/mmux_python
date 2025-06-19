@@ -329,7 +329,7 @@ def create_grid_samples(
             np.linspace(mins[i], maxs[i], n_points_per_dimension[i])
             if input_vars[i] in grid_vars
             else cut_values[i]
-            for i in range(len(n_points_per_dimension))
+            for i in range(len(input_vars))
         ]
     )
     gridpoints = np.vstack([a.ravel() for a in grid]).T

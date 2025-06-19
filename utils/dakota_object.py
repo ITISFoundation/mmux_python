@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import dakota.environment as dakenv
 import logging
+import wiofiles as wio
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -90,37 +92,34 @@ class DakotaObject:
             raise e
 
     def run(self, dakota_conf: str, output_dir: Path):
-        if self.map_object:
-            # callbacks = {"model": self.model_callback}
-            callback = self.model_callback
-        else:
-            logger.info(
-                "No Map object was provided to DakotaObject. "
-                "Therefore, it is assumed this is a Dakota-internal calculation"
-                "and no callback is necessary."
-            )
-            # callbacks = {}
-            callback = None
         print("Starting dakota")
-        dakota_restart_path = output_dir / "dakota.rst"
         with working_directory(output_dir):
-            study = dakenv.study(  # type: ignore
-                # callbacks=callbacks,
-                callback=callback,
-                input_string=dakota_conf,
-                read_restart=(
-                    str(dakota_restart_path) if dakota_restart_path.exists() else ""
-                ),
+            stdout, stderr = self.future_exec(
+                func=self.model_callback if self.map_object else None,
+                conf=dakota_conf,
             )
+            print("Dakota run finished")
+            with open("dakota_stdout.txt", "w") as f_out, open("dakota_stderr.txt", "w") as f_err:
+                if stdout:
+                    f_out.write(stdout)
+                if stderr:
+                    f_err.write(stderr)
+            if stderr:
+                print(stderr, file=sys.stderr)
+    
+    def dak_exec(self, func, conf):
+        study = dakenv.study(callbacks={'map': func}, input_string=conf) # type: ignore
+        stdoutstr, stderrstr = None, None
+        with wio.capture_to_file(stdout='./stdout', stderr='./stderr') as (stdout, stderr):
             study.execute()
+        with open(stdout) as outf, open(stderr) as errf:
+            stdoutstr = outf.read()
+            stderrstr = errf.read()
+        del study
+        return stdoutstr, stderrstr
 
-
-# if __name__ == "__main__":
-# import logging
-
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.DEBUG)
-# logger.debug("This message should go to the log file")
-# logger.info("So should this")
-# logger.warning("And this, too")
-# logger.error("And non-ASCII stuff, too, like Øresund and Malmö")
+    def future_exec(self, func, conf):
+        import concurrent.futures
+        with concurrent.futures.ProcessPoolExecutor(1) as pool:
+            future = pool.submit(self.dak_exec, func, conf)
+        return future.result()

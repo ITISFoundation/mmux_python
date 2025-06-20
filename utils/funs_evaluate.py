@@ -6,13 +6,11 @@ import uuid
 import pandas as pd
 import numpy as np
 import shutil
-import json
 from typing import List, Literal, Optional, Callable, Dict
 from sklearn.model_selection import KFold
 
 from mmux_python.utils.dakota_object import DakotaObject # type: ignore
 from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation, create_sumo_manual_crossvalidation # type: ignore
-from mmux_python.utils.funs_plotting import plot_response_curves, plot_uq_histogram # type: ignore
 from mmux_python.utils.funs_data_processing import ( # type: ignore
     sanitize_varnames,
     create_samples_along_axes,
@@ -116,9 +114,7 @@ def evaluate_sumo_along_axes(
     )
 
     # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
     results = extract_predictions_along_axes(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
@@ -153,9 +149,7 @@ def propagate_uq(
     )
 
     # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
     x = get_results(run_dir / f"predictions.dat", output_response)
     return x.tolist()
@@ -218,9 +212,7 @@ def evaluate_sumo_crossvalidation(
         N_CROSS_VALIDATION=N_CROSS_VALIDATION,
     )
         # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
     ## TODO I was parsing from the stdout. How to do it now?
     log_output = ""
@@ -259,7 +251,7 @@ def evaluate_sumo_manual_crossvalidation(
             validation_indices=val_idx.tolist(),
             dakota_conf_file= fold_run_dir / "dakota_config.in",
         )
-        dakobj = DakotaObject(map_object=None)
+        dakobj = DakotaObject()
         dakobj.run(dakota_conf, fold_run_dir)
 
         # Extract predictions for this fold and store in the correct positions
@@ -300,9 +292,7 @@ def evaluate_sumo(
     )
 
     # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
 
     results = {response_var+"_hat": get_results(run_dir / "predictions.dat", response_var).tolist()}
@@ -337,7 +327,7 @@ def evaluate_sumo_on_grid(
     Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
     Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
     """
-    
+    NPOINTSPERDIMENSION = [NSAMPLESPERVAR] * len(input_vars)  # default number of points per dimension
     grid_vars = sanitize_varnames(grid_vars)
     input_vars = sanitize_varnames(input_vars)
     response_var = sanitize_varnames(response_var)
@@ -349,11 +339,10 @@ def evaluate_sumo_on_grid(
         run_dir = run_dir,
         grid_vars = grid_vars,
         input_vars = input_vars,
-        mins = [data[var].min() for var in input_vars],
+        mins = [data[var].min() for var in input_vars], ## TODO it is here that we should use the distribution values (passed directly from the frontend)
         cut_values = [cut_values[var] for var in input_vars] if cut_values else [data[var].mean() for var in input_vars],
-        maxs = [data[var].max() for var in input_vars],
-        n_points_per_dimension=[NSAMPLESPERVAR] * len(input_vars),
-        # downscaling_factor=4, ## TESTING ## DOES NOT WORK ATM!!
+        maxs = [data[var].max() for var in input_vars], # TODO it is here that we should use the distribution values (passed directly from the frontend)
+        n_points_per_dimension=NPOINTSPERDIMENSION,
     )
 
     # create dakota file
@@ -367,16 +356,27 @@ def evaluate_sumo_on_grid(
         output_responses=[response_var],
     )
 
-    # run dakota
-    dakobj = DakotaObject(
-        map_object=None
-    )  # no need to evaluate any function (only the SuMo, internal to Dakota)
+    dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
 
     results = extract_predictions_gridpoints(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
     )
-
+    
+    if len(grid_vars) == 2: ## this is not necessary for 3D
+        output = np.array(results[response_var])
+        reshape_indices = [NPOINTSPERDIMENSION[i] for i in range(len(input_vars)) if input_vars[i] in grid_vars ]
+        if grid_vars[0] in input_vars[:2] and grid_vars[1] in input_vars[:2]:
+            ## reshape fills in row order. For some reason, this needs to be done reversed in XY / YX cases
+            ## but NOT for any other input combination...
+            output = output.reshape(reshape_indices[::-1]).T  
+        else:
+            output = output.reshape(reshape_indices)
+        input_vars_in_grid_vars = [var for var in input_vars if var in grid_vars ]
+        transpose_indices = [input_vars_in_grid_vars.index(grid_vars[i]) for i in range(len(grid_vars))]
+        final_output = output.transpose(transpose_indices[::-1]) # ZX, XZ, YZ, ZY work; but not YX, XY. Why??? 
+        results[response_var] = final_output.tolist()
+        
     return results
 
 if __name__ == "__main__":

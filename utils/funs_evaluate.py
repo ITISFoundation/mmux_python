@@ -10,7 +10,7 @@ from typing import List, Literal, Optional, Callable, Dict
 from sklearn.model_selection import KFold
 
 from mmux_python.utils.dakota_object import DakotaObject # type: ignore
-from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation, create_uq_propagation, create_sumo_crossvalidation, create_sumo_manual_crossvalidation # type: ignore
+from mmux_python.utils.funs_create_dakota_conf import create_sumo_evaluation_conffile, create_uq_propagation_conffile, create_sumo_crossvalidation_conffile, create_sumo_manual_crossvalidation_conffile # type: ignore
 from mmux_python.utils.funs_data_processing import ( # type: ignore
     sanitize_varnames,
     create_samples_along_axes,
@@ -104,7 +104,7 @@ def evaluate_sumo_along_axes(
             shutil.copy(file, run_dir)
 
     # create dakota file
-    dakota_conf = create_sumo_evaluation(
+    dakota_conf = create_sumo_evaluation_conffile(
         build_file=PROCESSED_TRAINING_FILE,
         sumo_import_name=sumo_import_name,
         sumo_export_name=sumo_export_name,
@@ -139,7 +139,7 @@ def propagate_uq(
     stds = {sanitize_varnames(k): v for k, v in stds.items()}
 
     # create dakota file
-    dakota_conf = create_uq_propagation(
+    dakota_conf = create_uq_propagation_conffile(
         build_file=PROCESSED_TRAINING_FILE,
         input_variables=input_vars,
         input_means=means,
@@ -205,7 +205,7 @@ def evaluate_sumo_crossvalidation(
     input_vars = sanitize_varnames(input_vars)
     output_response = sanitize_varnames(output_response)
 
-    dakota_conf = create_sumo_crossvalidation(
+    dakota_conf = create_sumo_crossvalidation_conffile(
         PROCESSED_TRAINING_FILE, 
         input_vars,
         [output_response],
@@ -243,7 +243,7 @@ def evaluate_sumo_manual_crossvalidation(
         os.makedirs(fold_run_dir, exist_ok=True)
 
         # Create Dakota config for this fold
-        dakota_conf = create_sumo_manual_crossvalidation(
+        dakota_conf = create_sumo_manual_crossvalidation_conffile(
             fold_run_dir,
             PROCESSED_TRAINING_FILE,
             input_vars,
@@ -284,7 +284,7 @@ def evaluate_sumo(
     No callback is necessary (everything internal to Dakota).
     """
     # create dakota file
-    dakota_conf = create_sumo_evaluation(
+    dakota_conf = create_sumo_evaluation_conffile(
         build_file=PROCESSED_TRAINING_FILE,
         samples_file=PROCESSED_EVALUATION_SAMPLES_FILE,
         input_variables=input_vars,
@@ -346,7 +346,7 @@ def evaluate_sumo_on_grid(
     )
 
     # create dakota file
-    dakota_conf = create_sumo_evaluation(
+    dakota_conf = create_sumo_evaluation_conffile(
         build_file=PROCESSED_TRAINING_FILE,
         # sumo_import_name=sumo_import_name,
         # sumo_export_name=sumo_export_name,

@@ -339,7 +339,7 @@ def write_to_file(dakota_conf_text, dakota_conf_path):
 
 
 ############## COMMON WORKFLOWS ######################
-def create_function_sampling(
+def create_function_sampling_conffile(
     fun: Callable,
     num_samples: int = 100,
     seed: int = 1234,
@@ -390,7 +390,7 @@ def create_function_sampling(
     return dakota_conf
 
 
-def create_sumo_evaluation(
+def create_sumo_evaluation_conffile(
     build_file: Path,
     # surrogate_type: Optional[str] = None, ## for now, always GP
     # TODO be able to load sumo (instead of building every time)
@@ -417,7 +417,7 @@ def create_sumo_evaluation(
     return dakota_conf
 
 
-def create_export_sumo(
+def create_export_sumo_conffile(
     build_file: Path,
     input_variables: List[str],
     output_responses: List[str],
@@ -463,7 +463,8 @@ def create_uq_propagation(
 
     return dakota_conf
 
-def create_sumo_crossvalidation(
+
+def create_sumo_crossvalidation_conffile(
     build_file: Path,
     input_variables: List[str],
     output_responses: List[str],
@@ -495,8 +496,7 @@ def create_sumo_crossvalidation(
     return dakota_conf
 
 
-
-def create_sumo_manual_crossvalidation(
+def create_sumo_manual_crossvalidation_conffile(
     fold_run_dir: Path,
     build_file: Path,
     input_variables: List[str],

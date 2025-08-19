@@ -417,7 +417,7 @@ def create_sumo_evaluation(
     return dakota_conf
 
 
-def create_optimization_moga(
+def create_iterative_moga_optimization_conffile(
     fun: Callable,
     moga_kwargs: dict,
     batch_mode: bool = True,  ## always active here

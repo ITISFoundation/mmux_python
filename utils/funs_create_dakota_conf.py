@@ -551,3 +551,77 @@ def create_sumo_manual_crossvalidation_conffile(
         write_to_file(dakota_conf, dakota_conf_file)
 
     return dakota_conf
+
+
+def create_moga_optimization_conffile(
+    build_file: Path,
+    input_variables: List[str],
+    output_responses: List[str],
+    moga_kwargs: dict,
+    lower_bounds: Optional[list] = None,
+    upper_bounds: Optional[list] = None,
+    dakota_conf_file: Optional[str | Path] = None,
+):
+    dakota_conf = start_dakota_file()
+    dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
+    dakota_conf += add_moga_method(**moga_kwargs)
+    dakota_conf += add_continuous_variables(
+        variables=input_variables,
+        lower_bounds=(
+            lower_bounds if lower_bounds else [0.0 for _ in range(len(input_variables))]
+        ),
+        upper_bounds=(
+            upper_bounds if upper_bounds else [1.0 for _ in range(len(input_variables))]
+        ),
+    )
+    dakota_conf += add_responses(descriptors=output_responses)
+    # dakota_conf += add_python_interface("model", batch_mode=batch_mode)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf
+
+def create_moga_iterative_optimization_conffile(
+    input_variables: List[str],
+    output_responses: List[str],
+    max_iterations: int,
+    moga_kwargs: dict,
+    batch_mode: bool = True,  ## always active here
+    lower_bounds: Optional[list] = None,
+    upper_bounds: Optional[list] = None,
+    dakota_conf_file: Optional[str | Path] = None,
+    dakota_results_file: Optional[Path] = None,
+):
+    ## TODO need to debug
+    dakota_conf = start_dakota_file(
+        top_method_pointer="MOGA",
+        results_file_name=(
+            str(dakota_results_file) if dakota_results_file else "results.dat"
+        ),
+    )
+    dakota_conf += add_iterative_sumo_optimization(
+        id_method="SUMO_OPT",
+        model_pointer="SURR_MODEL",
+        method_pointer="MOGA",
+        max_iterations=max_iterations,
+    )
+    dakota_conf += add_surrogate_model(
+        id_model="SURR_MODEL",
+        id_sampling_method="SAMPLING",
+    )
+    dakota_conf += add_moga_method(**moga_kwargs)
+    dakota_conf += add_continuous_variables(
+        variables=input_variables,
+        lower_bounds=(
+            lower_bounds if lower_bounds else [0.0 for _ in range(len(input_variables))]
+        ),
+        upper_bounds=(
+            upper_bounds if upper_bounds else [1.0 for _ in range(len(input_variables))]
+        ),
+    )
+    dakota_conf += add_responses(descriptors=output_responses)
+    dakota_conf += add_python_interface("model", batch_mode=batch_mode)
+
+    if dakota_conf_file:
+        write_to_file(dakota_conf, dakota_conf_file)
+    return dakota_conf

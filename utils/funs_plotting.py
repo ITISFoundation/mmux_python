@@ -1,7 +1,11 @@
-import matplotlib.pyplot as plt
-from typing import Dict, List, Optional, Callable, Literal
+from typing import Dict, List, Optional, Callable, Literal, Tuple
 import numpy as np
 from pathlib import Path
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+import seaborn as sns
+#
 import sys
 sys.path.append(str(Path(__file__).parent))
 from funs_data_processing import get_results
@@ -128,7 +132,6 @@ def plot_response_curves(
     print(f"Figure saved in {savepath}")
 
 
-from typing import Tuple
 def _process_x_axis_scaling(
     var: str,
     data: Dict[str, np.ndarray],
@@ -166,6 +169,7 @@ def _process_x_axis_scaling(
         xlabel = label_converter(var) if label_converter else var
     
     return x, xlabel
+
 
 def _process_y_axis_scaling(
     response: str,
@@ -240,3 +244,59 @@ def plot_uq_histogram(
     assert savepath is not None
     assert savepath.exists(), f"Plotting failed, savepath {savepath} does not exist"
     return savepath
+
+
+def plot_objective_space(
+    df: pd.DataFrame,
+    xvar: str,
+    yvar: str,
+    non_dominated_indices: Optional[List[int]] = None,
+    ax: Optional[Axes] = None,  # type: ignore
+    hvar: Optional[str] = None,
+    xlim: Optional[Tuple[float, float]] = None,  # = (0, 20),
+    ylim: Optional[Tuple[float, float]] = None,  # (0, 1e2),
+    scattercolor: str = "blue",
+    palette: str = "Blues",
+    scattersize: int = 30,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    title: Optional[str] = None,
+    facecolors: Optional[str] = None,
+    savedir: Optional[Path] = None,
+    savefmt: str = "png",
+) -> Axes:
+    """Plot the objective space of a set of points F."""
+    if ax is None:
+        ax = plt.subplots(figsize=(10, 10))[1]
+
+    sns.scatterplot(
+        df,
+        x=xvar,
+        y=yvar,
+        hue=hvar,
+        palette=palette,
+        size=scattersize,
+        facecolors=facecolors,
+        edgecolors=scattercolor,
+    )
+    if non_dominated_indices:
+        sns.scatterplot(
+            df.iloc[pd.Index(non_dominated_indices)],
+            x=xvar,
+            y=yvar,
+            size=scattersize,
+            facecolors="none",
+            edgecolors="red",
+        )
+    plt.xlabel(xlabel if xlabel else str(xvar if xvar else df.columns[0]))
+    plt.ylabel(ylabel if ylabel else str(yvar if yvar else df.columns[1]))
+    plt.xlim(xlim)  # FIXME what if None?
+    plt.ylim(ylim)
+
+    plt.title(title if title else "Objective Space")
+    if savedir is None:
+        savedir = Path(".")
+    savepath = savedir / (f"ObjectiveSpace_{xvar}_{yvar}." + savefmt)
+    plt.savefig(savepath, format=savefmt, dpi=300)
+    return ax
+

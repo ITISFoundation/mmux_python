@@ -432,7 +432,7 @@ def create_export_sumo_conffile(
     return dakota_conf
 
 
-def create_uq_propagation(
+def create_uq_propagation_conffile(
     build_file: Path,
     # surrogate_type: Optional[str] = None, ## for now, always GP
     # TODO be able to load sumo (instead of building every time)

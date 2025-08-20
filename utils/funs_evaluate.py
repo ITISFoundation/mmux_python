@@ -4,7 +4,7 @@ import os
 import re
 import uuid
 import pandas as pd
-import numpy as np
+import numpy as np # type: ignore
 import shutil
 from typing import List, Literal, Optional, Callable, Dict
 from sklearn.model_selection import KFold

@@ -462,6 +462,10 @@ sanitize_varnames_dict = sanitize_varnames  # For dictionary input
 sanitize_varnames_df = sanitize_varnames  # For DataFrame input
 
 
+def is_dominated(point: np.ndarray, other_points: np.ndarray):
+    return any(all(point >= other) for other in other_points)
+
+
 def get_non_dominated_indices(
     data: pd.DataFrame,
     optimized_vars: List[str],

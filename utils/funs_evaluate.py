@@ -9,15 +9,15 @@ import shutil
 from typing import List, Literal, Optional, Callable, Dict
 from sklearn.model_selection import KFold
 
-from mmux_python.utils.dakota_object import DakotaObject
-from mmux_python.utils.funs_create_dakota_conf import (
+from dakota_object import DakotaObject
+from funs_create_dakota_conf import (
     create_sumo_evaluation_conffile, 
     create_uq_propagation_conffile, 
     create_sumo_crossvalidation_conffile, 
     create_sumo_manual_crossvalidation_conffile, 
     create_moga_optimization_conffile,
 )
-from mmux_python.utils.funs_data_processing import (
+from funs_data_processing import (
     sanitize_varnames,
     create_samples_along_axes,
     extract_predictions_along_axes,
@@ -431,23 +431,7 @@ def perform_moga_optimization(
         optimized_vars=output_responses[:2],
         sort_by_column=output_responses[0],
     )
-    results["non_dominated_indices"] = non_dominated_indices
-
-    # FIXME temporary, to check that things get done well
-    from funs_plotting import plot_objective_space    
-    plot_objective_space(
-        results_df,
-        non_dominated_indices=non_dominated_indices,
-        xvar=output_responses[0],
-        yvar=output_responses[1],
-        xlabel=output_responses[0],
-        ylabel=output_responses[1],
-        title="Sampled Objective Space",
-        facecolors="none",
-        scattersize=30,
-        savedir=run_dir,
-        savefmt="png",
-    )
+    results["non_dominated_indices"] = np.array(non_dominated_indices).astype(float).tolist() ## int64 is not JSON serializable
 
     return results
 

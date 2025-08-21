@@ -9,9 +9,9 @@ import seaborn as sns
 import sys
 sys.path.append(str(Path(__file__).parent))
 from funs_data_processing import get_results
-import matplotlib
-matplotlib.rc('text', usetex=True)
-matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
+# import matplotlib
+# matplotlib.rc('text', usetex=True)
+# matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
 
 def plot_histogram(

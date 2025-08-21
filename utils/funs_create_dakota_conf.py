@@ -1,6 +1,7 @@
 ### Useful functions to couple Python and Dakota - to use accross different scripts & notebooks
 from typing import List, Optional, Literal, Callable, Dict
 from pathlib import Path
+import shutil
 
 
 def start_dakota_file(
@@ -504,7 +505,7 @@ def create_sumo_manual_crossvalidation_conffile(
     validation_indices: List[int],
     dakota_conf_file: Optional[str | Path] = None,
 ):
-    from mmux_python.utils.funs_data_processing import process_input_file, load_data
+    from funs_data_processing import process_input_file, load_data
     dakota_conf = start_dakota_file()
     n_samples = len(load_data(build_file))
     print(f"Number of samples in the build file: {n_samples}")
@@ -515,7 +516,6 @@ def create_sumo_manual_crossvalidation_conffile(
         columns_to_keep=input_variables + [output_response],
         suffix="training"
     )
-    import shutil
     TRAINING_SAMPLES_FILE = Path(shutil.move(
         str(TRAINING_SAMPLES_FILE.resolve()),
         str(fold_run_dir / TRAINING_SAMPLES_FILE.name)  # move to the fold run dir

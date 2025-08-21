@@ -4,7 +4,7 @@ import traceback
 import contextlib
 import os
 from pathlib import Path
-import dakota.environment as dakenv
+import dakota.environment as dakenv # type: ignore
 import logging
 
 logger = logging.getLogger(__name__)

@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, Callable, Literal, Tuple
-import numpy as np
+import numpy as np # type: ignore
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt

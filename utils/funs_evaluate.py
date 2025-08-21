@@ -9,6 +9,8 @@ import shutil
 from typing import List, Literal, Optional, Callable, Dict
 from sklearn.model_selection import KFold
 
+import sys
+sys.path.append(str(Path(__file__).parent))
 from dakota_object import DakotaObject
 from funs_create_dakota_conf import (
     create_sumo_evaluation_conffile, 
@@ -390,12 +392,12 @@ def perform_moga_optimization(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
     input_vars: List[str],
-    # lower_bounds: List[float],
-    # upper_bounds: List[float],
     distributions: Dict[str, Dict[str, float]],
     output_responses: List[str],
     moga_kwargs: dict,
 ) -> Dict[str, List[float | int]]:
+    print(f"minimizing {', '.join(output_responses)}")
+
     input_vars = sanitize_varnames(input_vars)
     output_responses = [sanitize_varnames(resp) for resp in output_responses]
     distributions = sanitize_varnames(distributions)
@@ -430,6 +432,7 @@ def perform_moga_optimization(
         results_df,
         optimized_vars=output_responses[:2],
         sort_by_column=output_responses[0],
+        optimization_modes=None, ## minimization by default
     )
     results["non_dominated_indices"] = np.array(non_dominated_indices).astype(float).tolist() ## int64 is not JSON serializable
 

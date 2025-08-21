@@ -1,7 +1,7 @@
-from typing import List, Optional, Callable, Dict, TypeVar, overload, Literal
+from typing import List, Optional, Callable, Dict, TypeVar, overload, Literal, Tuple
 import os
 import json
-import numpy as np
+import numpy as np # type: ignore
 import pandas as pd
 from pathlib import Path
 import copy
@@ -136,7 +136,7 @@ def process_input_file(
     if columns_to_keep:
         columns_to_keep = [sanitize_varname(c) for c in columns_to_keep if c in df.columns or sanitize_varname(c) in df.columns]
         df.columns = [sanitize_varname(col) for col in df.columns]
-        df = df[columns_to_keep]
+        df = df[columns_to_keep] # type: ignore
     else:
         for c in columns_to_remove:
             c_sanitized = sanitize_varname(c)
@@ -186,24 +186,24 @@ def _filter_data(
             filter_N_samples is None
         ), "only one of 'filter_highest_N' or 'filter_N_samples' is allowed"
         filter_highest_N_variable = (
-            df.columns[-1]
+            str(df.columns[-1])
             if filter_highest_N_variable is None
             else filter_highest_N_variable
         )
         df = df.sort_values(by=filter_highest_N_variable, ascending=False).iloc[
             filter_highest_N:
-        ]
+        ] # type: ignore
 
     # allows to only take the first N rows
     if filter_N_samples is not None:
         assert (
             filter_highest_N is None
         ), "only one of 'filter_highest_N' or 'filter_N_samples' is allowed"
-        df = df.iloc[:filter_N_samples] if filter_N_samples is not None else df
+        df = df.iloc[:filter_N_samples] if filter_N_samples is not None else df # type: ignore
     ## allow to only keep certain idxs
     if keep_idxs is not None:
         original_len = len(df)
-        df = df.loc[keep_idxs]
+        df = df.loc[keep_idxs] # type: ignore
         print(f"Keeping only {len(df)} rows (of {original_len})")
 
     return df
@@ -235,7 +235,7 @@ def create_samples_along_axes(
     assert np.all(
         [var in data.columns for var in input_vars]
     ), "Input variables not found in data"
-    data = data[input_vars]
+    data = data[input_vars] # type: ignore
     assert len(data.columns) == len(
         input_vars
     ), "Data columns do not match input variables"
@@ -352,7 +352,7 @@ def extract_predictions_gridpoints(
     """
     predictions_df = load_data(run_dir / "predictions.dat")
     input_vars = sanitize_varnames(input_vars)
-    RESPONSE = sanitize_varname(RESPONSE)
+    RESPONSE = sanitize_varnames(RESPONSE)
     
     y_hat = get_results(run_dir / "predictions.dat", RESPONSE)
 
@@ -364,7 +364,7 @@ def extract_predictions_gridpoints(
         )
         results[RESPONSE + "_std"] = std_hat.astype(float).tolist() # type: ignore
 
-    return results
+    return results # type: ignore
 
 def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dict[str, float]], num_samples: int, seed: Optional[int] = None):
     """
@@ -374,8 +374,8 @@ def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dic
     input_vars = sanitize_varnames(input_vars)
     distributions = {sanitize_varname(k): sanitize_varnames_dict(v) for k, v in distributions.items()}
     
-    # rng = np.random.default_rng(seed=seed)
-    from scipy.stats import norm, uniform
+    np.random.default_rng(seed=seed)
+    from scipy.stats import norm, uniform # type: ignore
     samples = {}
     for var in input_vars:
         dist_info = distributions[var]
@@ -468,7 +468,7 @@ def get_non_dominated_indices(
     optimization_modes: Optional[List[Literal["min", "max"]]] = None,
     sort_by_column: Optional[str] = None,
 ) -> List[int]:
-    data = data[optimized_vars].copy()
+    data = data[optimized_vars].copy() # type: ignore
 
     ## extract to separate function; unify with interface of MinimizationModel
     if optimization_modes:
@@ -493,8 +493,43 @@ def get_non_dominated_indices(
 
     if sort_by_column:
         sorted_indices = (
-            data.loc[non_dominated_indices].sort_values(by=sort_by_column).index.values
+            data.loc[non_dominated_indices].sort_values(by=sort_by_column).index.values # type: ignore
         )
         return list(sorted_indices)
     else:
         return non_dominated_indices
+
+
+def get_bounds_uniform_distributions(input_vars: List[str], distributions: Dict[str, Dict[str, float]]) -> Tuple[List[float], List[float]]:
+    lower_bounds = []
+    upper_bounds = []
+    for var in input_vars:
+        if var not in distributions:
+            raise ValueError(f"Distribution for variable '{var}' is not defined.")
+        min, max = get_bounds_uniform_distribution(var, distributions[var])
+        lower_bounds.append(min)
+        upper_bounds.append(max)
+
+    return lower_bounds, upper_bounds
+
+
+def get_bounds_uniform_distribution(var: str, dist: Dict[str, float]) -> Tuple[float, float]:
+    """
+    Extracts the lower and upper bounds from a uniform distribution specification.
+    Parameters:
+        var (str): The name of the variable for which the bounds are being retrieved.
+        dist (Dict[str, float]): A dictionary specifying the distribution parameters. 
+            Must contain the key "distribution" with value "uniform", and keys "min" and "max" for the bounds.
+    Returns:
+        Tuple[float, float]: A tuple containing the minimum and maximum bounds of the uniform distribution.
+    Raises:
+        ValueError: If the distribution is not uniform, if the bounds are not defined, or if min >= max.
+    """
+    if dist["distribution"] != "uniform":
+        raise ValueError(f"Non-uniform distribution for variable '{var}' is not supported.")
+    if "min" not in dist or "max" not in dist:
+        raise ValueError(f"Bounds for variable '{var}' are not defined.")
+    if dist["min"] >= dist["max"]:
+        raise ValueError(f"Invalid bounds for variable '{var}': min >= max.")
+    
+    return dist["min"], dist["max"]

@@ -26,6 +26,7 @@ from mmux_python.utils.funs_data_processing import (
     get_results,
     load_data,
     get_non_dominated_indices,
+    get_bounds_uniform_distributions
 )
 
 
@@ -389,22 +390,28 @@ def perform_moga_optimization(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
     input_vars: List[str],
-    lower_bounds: List[float],
-    upper_bounds: List[float],
+    # lower_bounds: List[float],
+    # upper_bounds: List[float],
+    distributions: Dict[str, Dict[str, float]],
     output_responses: List[str],
     moga_kwargs: dict,
-) -> Dict[str, Dict[str, List[float]]]:
+) -> Dict[str, List[float | int]]:
     input_vars = sanitize_varnames(input_vars)
     output_responses = [sanitize_varnames(resp) for resp in output_responses]
+    distributions = sanitize_varnames(distributions)
+
+    # assumes uniform distribution for MOGA - raises Error otherwise
+    ### TODO should we allow other distributions? Or just like UQ, fix the kind of dist to uniform?
+    lower_bounds, upper_bounds = get_bounds_uniform_distributions(input_vars, distributions)
 
     # create dakota file
     dakota_conf = create_moga_optimization_conffile(
         build_file=PROCESSED_TRAINING_FILE,
         input_variables=input_vars,
-        output_responses=output_responses,
-        moga_kwargs=moga_kwargs,
         lower_bounds=lower_bounds,
         upper_bounds=upper_bounds,
+        output_responses=output_responses,
+        moga_kwargs=moga_kwargs,
         dakota_conf_file=run_dir / "dakota_config.in",
     )
 
@@ -424,9 +431,10 @@ def perform_moga_optimization(
         optimized_vars=output_responses[:2],
         sort_by_column=output_responses[0],
     )
+    results["non_dominated_indices"] = non_dominated_indices
 
     # FIXME temporary, to check that things get done well
-    from funs_plotting import plot_objective_space
+    from funs_plotting import plot_objective_space    
     plot_objective_space(
         results_df,
         non_dominated_indices=non_dominated_indices,

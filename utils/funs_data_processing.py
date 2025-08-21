@@ -473,6 +473,7 @@ def get_non_dominated_indices(
     sort_by_column: Optional[str] = None,
 ) -> List[int]:
     data = data[optimized_vars].copy() # type: ignore
+    data = data.apply(pd.to_numeric, errors='coerce') ## bfr they were "np.object_" and was giving weird comparison results
 
     ## extract to separate function; unify with interface of MinimizationModel
     if optimization_modes:

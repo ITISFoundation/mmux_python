@@ -403,7 +403,6 @@ def perform_moga_optimization(
     distributions = sanitize_varnames(distributions)
 
     # assumes uniform distribution for MOGA - raises Error otherwise
-    ### TODO should we allow other distributions? Or just like UQ, fix the kind of dist to uniform?
     lower_bounds, upper_bounds = get_bounds_uniform_distributions(input_vars, distributions)
 
     # create dakota file
@@ -425,8 +424,10 @@ def perform_moga_optimization(
     for res in output_responses:
         x = get_results(run_dir / f"predictions.dat", res)
         results[res] = x.tolist()
+    for inv in input_vars:
+        x = get_results(run_dir / f"predictions.dat", inv)
+        results[inv] = x.tolist()
 
-    ## TODO also obtain set of pareto-optimal solutions (indices)
     results_df = load_data(run_dir / "results.dat")
     non_dominated_indices = get_non_dominated_indices(
         results_df,

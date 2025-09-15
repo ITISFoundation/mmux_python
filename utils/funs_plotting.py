@@ -29,7 +29,6 @@ def plot_response_curves(
     assert axs is not None
     current_yscale = "log" if "log" in output_label else "linear"
 
-    M = 0
     for (var, data), ax in zip(fulldata.items(), axs):
         current_xscale = "log" if "log" in var else "linear"
         if current_xscale == "log" and plotting_xscale == "log":
@@ -80,25 +79,33 @@ def plot_response_curves(
         ax.plot(x, y, label="Predicted")
         if "std_hat" in data:
             ax.fill_between(x, y - 2 * std, y + 2 * std, alpha=0.3)
-        ax.set_xlabel(xlabel, fontsize=14)
+        ax.set_xlabel(xlabel, fontsize=22)
 
-        m = np.max(data["y_hat"] + 2 * data["std_hat"])
-        M = m if M < m else M
+        # m = np.max(data["y_hat"] + 2 * data["std_hat"])
+        # M = m if M < m else M
     # ax.set_ylim(0, M * 1.2)
     if current_yscale == "log" and plotting_yscale == "linear":
         ## FIXME current approach, substitute by sth better. This is just changing the labels, not the plot
         axs[0].set_yticks(
             ticks=ax.get_yticks(),
             labels=[f"{np.exp(y):.2e}" for y in ax.get_yticks()],
+            fontsize=18,
         )
-    plt.suptitle(ylabel, fontsize=20)
+    for ax in axs:
+        ax.set_xticks(
+            ticks=ax.get_xticks(),
+            labels=ax.get_xticklabels(),  # type: ignore
+            # labels=[f"{x:.2f}" for x in ax.get_xticks()],
+            fontsize=20,
+        )
+    plt.suptitle(ylabel, fontsize=26)
     plt.tight_layout()
 
     if savedir is None:
         savedir = Path(".")
 
     savepath = savedir / (output_label + "." + savefmt)
-    plt.savefig(savepath, format=savefmt, dpi=300)
+    plt.savefig(savepath, format=savefmt, dpi=600)
     print(f"Figure saved in {savepath}")
 
 

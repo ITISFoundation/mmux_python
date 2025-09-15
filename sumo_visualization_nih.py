@@ -23,8 +23,8 @@ N_OUTPUTS = (
     + 3  #### Thermal
     # + 7  #### Neuro
 )
-PLOT_EM_PARAMETERS = False
-PLOT_THERMAL_PARAMETERS = True
+PLOT_EM_PARAMETERS = True
+PLOT_THERMAL_PARAMETERS = False
 ##################################################################
 
 
@@ -55,7 +55,10 @@ def nih_label_conversion(old_label: str) -> str:
     ), f"old_label must be a string object! Instead, {type(old_label)} found."
 
     ## pattern exceptions
-    if "EM_Shunting_Shunted_Current" in old_label:
+    if "EM_Shunting_Current_Outside" in old_label:
+        return "Shunted Current Outside the Nerve"
+    elif "EM_Shunting_Shunted_Current" in old_label:
+        # this is the above / total current (in %)
         return "Shunted Current Outside the Nerve (%)"
 
     # tissues
@@ -131,10 +134,15 @@ input_vars = var_names[:N_INPUTS]
 output_vars = var_names[-N_OUTPUTS:]
 ### FIXME not able to give only some output vars; would need to
 # remove them from the (PROCESSED_)TRAINING_FILE as well
-PROCESSED_TRAINING_FILE = process_input_file(
-    PROCESSED_TRAINING_FILE, columns_to_remove=output_vars[:15]
-)
-response_names = output_vars[15:]
+if PLOT_EM_PARAMETERS and not PLOT_THERMAL_PARAMETERS:
+    response_names = output_vars[: 4 + 4 * 3]  # EM only
+    outputs_to_remove = output_vars[4 + 4 * 3 :]
+elif PLOT_THERMAL_PARAMETERS and not PLOT_EM_PARAMETERS:
+    response_names = output_vars[4 + 4 * 3 :]  # Thermal only
+    outputs_to_remove = output_vars[: 4 + 4 * 3]
+elif not PLOT_EM_PARAMETERS and not PLOT_THERMAL_PARAMETERS:
+    raise ValueError("No output variables selected for plotting!")
+
 if PLOT_EM_PARAMETERS:
     response_names = [r + "_EMParameters" for r in response_names]
 if PLOT_THERMAL_PARAMETERS:
@@ -143,8 +151,11 @@ if PLOT_THERMAL_PARAMETERS:
 plotting_input_vars = (input_vars[:5] if PLOT_EM_PARAMETERS else []) + (
     input_vars[5:] if PLOT_THERMAL_PARAMETERS else []
 )
-assert len(input_vars), "No input variables selected for plotting!"
+assert len(plotting_input_vars), "No input variables selected for plotting!"
 
+PROCESSED_TRAINING_FILE = process_input_file(
+    PROCESSED_TRAINING_FILE, columns_to_remove=outputs_to_remove
+)
 evaluate_sumo_along_axes(
     run_dir,
     PROCESSED_TRAINING_FILE,

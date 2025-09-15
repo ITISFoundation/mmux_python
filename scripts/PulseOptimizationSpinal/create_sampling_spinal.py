@@ -11,9 +11,9 @@ from utils.funs_plotting import plot_objective_space
 from utils_spinal import get_model_from_spinal_repo, postpro_spinal_samples
 
 
-MAXAMP = 5.0
-NUM_SAMPLES = 1500
-N_RUNNERS = 20
+MAXAMP = 1.0
+NUM_SAMPLES = 10
+N_RUNNERS = 1
 
 
 ########################################################################################

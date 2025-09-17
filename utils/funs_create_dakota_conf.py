@@ -270,24 +270,27 @@ def add_evaluation_method(
 
 
 def add_moga_method(
-    max_function_evaluations=5000,
-    max_iterations=100,
     population_size=32,
-    max_designs=32,
+    max_iterations=100,
+    fitness_type: Literal["layer_rank", "domination_count"] = "layer_rank",
+    replacement_type: Literal["elitist", "roulette_wheel", "unique_roulette_wheel", "below_limit"] = "elitist",
     id_method="MOGA",
     seed=12345,
+    ## not exposed in MMUX
+    max_designs=32,  
+    # crossover_type: str = "multi_point_real 5",
+    # mutation_type: str = "offset_uniform",
 ):
     return f"""
         method
             id_method = '{id_method}'
             moga
             population_size = {population_size} # Set the initial population size in JEGA methods
-            max_function_evaluations = {max_function_evaluations}
             max_iterations = {max_iterations}
 
             ## hyperparameters taken from Medtronic's pulse shape optimization
             fitness_type
-                layer_rank
+                {fitness_type}  
             crossover_type
                 multi_point_real 5
             mutation_type
@@ -295,7 +298,7 @@ def add_moga_method(
             niching_type
                 max_designs {max_designs} # Limit number of solutions to remain in the population
             replacement_type
-                elitist
+                {replacement_type} 
             seed = {seed}
         """
 

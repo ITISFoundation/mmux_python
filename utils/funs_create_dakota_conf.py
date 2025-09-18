@@ -272,6 +272,7 @@ def add_evaluation_method(
 def add_moga_method(
     population_size=32,
     max_iterations=100,
+    max_function_evaluations=None,
     fitness_type: Literal["layer_rank", "domination_count"] = "layer_rank",
     replacement_type: Literal["elitist", "roulette_wheel", "unique_roulette_wheel", "below_limit"] = "elitist",
     id_method="MOGA",
@@ -281,6 +282,8 @@ def add_moga_method(
     # crossover_type: str = "multi_point_real 5",
     # mutation_type: str = "offset_uniform",
 ):
+    if max_function_evaluations:
+        print("Max Function Evaluations for MOGA is deprecated; will be ignored")
     return f"""
         method
             id_method = '{id_method}'

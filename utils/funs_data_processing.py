@@ -374,8 +374,8 @@ def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dic
     input_vars = sanitize_varnames(input_vars)
     distributions = {sanitize_varname(k): sanitize_varnames_dict(v) for k, v in distributions.items()}
     
-    np.random.default_rng(seed=seed)
     from scipy.stats import norm, uniform # type: ignore
+    np.random.default_rng(seed=seed)
     samples = {}
     for var in input_vars:
         dist_info = distributions[var]

@@ -428,15 +428,6 @@ def perform_moga_optimization(
         x = get_results(run_dir / f"predictions.dat", inv)
         results[inv] = x.tolist()
 
-    results_df = load_data(run_dir / "results.dat")
-    non_dominated_indices = get_non_dominated_indices(
-        results_df,
-        optimized_vars=output_responses[:2],
-        sort_by_column=output_responses[0],
-        optimization_modes=None, ## minimization by default
-    )
-    results["non_dominated_indices"] = np.array(non_dominated_indices).astype(float).tolist() ## int64 is not JSON serializable
-
     return results
 
 

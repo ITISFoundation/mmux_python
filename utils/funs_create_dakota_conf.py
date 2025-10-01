@@ -274,13 +274,14 @@ def add_moga_method(
     maxIterations=100,
     max_function_evaluations=None,
     fitnessType: Literal["layer_rank", "domination_count"] = "layer_rank",
-    replacementType: Literal["elitist", "roulette_wheel", "unique_roulette_wheel", "below_limit"] = "elitist",
+    replacementType: Literal["elitist", "unique_roulette_wheel", "below_limit"] = "elitist", # N.B. roulette_wheel not working in dakota 6.19
     id_method="MOGA",
     seed=12345,
-    ## not exposed in MMUX
+    ############ not exposed in MMUX ####################
     max_designs=32,  
-    # crossover_type: str = "multi_point_real 5",
-    # mutation_type: str = "offset_uniform",
+    crossover_type: str = "multi_point_real 5",
+    mutation_type: str = "offset_uniform",
+    #####################################################
 ):
     if max_function_evaluations:
         print("Max Function Evaluations for MOGA is deprecated; will be ignored")
@@ -295,13 +296,13 @@ def add_moga_method(
             fitness_type
                 {fitnessType}  
             crossover_type
-                multi_point_real 5
+                {crossover_type}
             mutation_type
-                offset_uniform
+                {mutation_type}
             niching_type
                 max_designs {max_designs} # Limit number of solutions to remain in the population
             replacement_type
-                {replacementType} 
+                {replacementType} {6 if replacementType == "below_limit" else ""} # Only used with below_limit replacement_type
             seed = {seed}
         """
 

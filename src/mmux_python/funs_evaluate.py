@@ -13,15 +13,15 @@ import pandas as pd
 from sklearn.model_selection import KFold
 
 sys.path.append(str(Path(__file__).parent))
-from dakota_object import DakotaObject
-from funs_create_dakota_conf import (
+from mmux_python.dakota_object import DakotaObject
+from mmux_python.funs_create_dakota_conf import (
     create_moga_optimization_conffile,
     create_sumo_crossvalidation_conffile,
     create_sumo_evaluation_conffile,
     create_sumo_manual_crossvalidation_conffile,
     create_uq_propagation_conffile,
 )
-from funs_data_processing import (
+from mmux_python.funs_data_processing import (
     create_grid_samples,
     create_samples_along_axes,
     extract_predictions_along_axes,

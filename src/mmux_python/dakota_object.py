@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import dakota.environment as dakenv  # type: ignore
-import wiofiles as wio
+from mmux_python import wiofiles as wio
 
 logger = logging.getLogger(__name__)
 

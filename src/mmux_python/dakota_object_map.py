@@ -1,11 +1,12 @@
-from typing import Callable, List
-import uuid
-import traceback
 import contextlib
-import os
-from pathlib import Path
-import dakota.environment as dakenv # type: ignore
 import logging
+import os
+import traceback
+import uuid
+from collections.abc import Callable
+from pathlib import Path
+
+import dakota.environment as dakenv  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class Map:
         logger.info(f"Optimizer uuid is {self.uuid}")
         pass
 
-    def evaluate(self, params_set: List[dict]):
+    def evaluate(self, params_set: list[dict]):
         outputs_set = []
         logger.info(f"Evaluating {len(params_set)} parameter sets")
         logger.debug(f"Evaluating: {params_set}")
@@ -54,7 +55,7 @@ class DakotaObject:
         self.map_object = map_object
         logger.info("DakotaObject created")
 
-    def model_callback(self, dak_inputs: List[dict]) -> List[dict]:
+    def model_callback(self, dak_inputs: list[dict]) -> list[dict]:
         try:
             logger.info("Into model_callback")
             param_sets = [
@@ -102,7 +103,7 @@ class DakotaObject:
             callback = None
         print("Starting dakota")
         dakota_restart_path = output_dir / "dakota.rst"
-        with working_directory(output_dir): # type: ignore
+        with working_directory(output_dir):  # type: ignore
             study = dakenv.study(  # type: ignore
                 callback=callback,
                 input_string=dakota_conf,
@@ -111,4 +112,3 @@ class DakotaObject:
                 ),
             )
             study.execute()
-

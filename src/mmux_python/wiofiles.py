@@ -12,12 +12,12 @@ from contextlib import contextmanager
 # copied from wurlitzer
 libc = ctypes.CDLL(None)
 try:
-    c_stdout_p = ctypes.c_void_p.in_dll(libc, 'stdout')
-    c_stderr_p = ctypes.c_void_p.in_dll(libc, 'stderr')
+    c_stdout_p = ctypes.c_void_p.in_dll(libc, "stdout")
+    c_stderr_p = ctypes.c_void_p.in_dll(libc, "stderr")
 except ValueError:
     # libc.stdout has a funny name on macOS
-    c_stdout_p = ctypes.c_void_p.in_dll(libc, '__stdoutp')
-    c_stderr_p = ctypes.c_void_p.in_dll(libc, '__stderrp')
+    c_stdout_p = ctypes.c_void_p.in_dll(libc, "__stdoutp")
+    c_stderr_p = ctypes.c_void_p.in_dll(libc, "__stderrp")
 
 
 @contextmanager
@@ -47,6 +47,7 @@ def capture_to_file(stdout="./stdout", stderr="./stderr"):
             os.dup2(save_stderr, real_stderr)
             stderr_f.close()
 
+
 # ======================================================================
 # example
 
@@ -55,16 +56,17 @@ def capture_to_file(stdout="./stdout", stderr="./stderr"):
 # if the message size exceeds max-pipe-size
 pylibc = ctypes.PyDLL(None)
 
+
 def main():
     sz = 64000
     # while sz < 100_000_000:
     while sz < 100_000:
-        print('writing', sz)
-        buf = b'1' * sz
+        print("writing", sz)
+        buf = b"1" * sz
 
         with capture_to_file() as (stdout, stderr):
             # execute anything that outputs to stdout, stderr
-            pylibc.printf(buf + b'\0')
+            pylibc.printf(buf + b"\0")
         # gather from files
         stdoutstr, stderrstr = None, None
         with open(stdout) as outf, open(stderr) as errf:
@@ -75,7 +77,7 @@ def main():
         print(stderrstr)
         with capture_to_file() as (stdout, stderr):
             # execute anything that outputs to stdout, stderr
-            pylibc.printf(buf + b'\0')
+            pylibc.printf(buf + b"\0")
         # gather from files
         stdoutstr, stderrstr = None, None
         with open(stdout) as outf, open(stderr) as errf:

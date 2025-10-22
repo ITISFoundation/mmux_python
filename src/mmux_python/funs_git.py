@@ -1,10 +1,11 @@
-import sys
 import os
-from pathlib import Path
-from typing import Optional, Tuple, Any
 import subprocess
+import sys
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+from typing import Any
+
 import requests
-from importlib.util import spec_from_file_location, module_from_spec
 
 
 def get_mmux_top_directory() -> Path:
@@ -31,11 +32,11 @@ def check_repo_exists(repo_url: str) -> bool:
 
 def clone_repo(
     repo_url: str,
-    target_dir: Optional[Path] = None,
-    commit_hash: Optional[str] = None,
-) -> Tuple[bool, str]:
+    target_dir: Path | None = None,
+    commit_hash: str | None = None,
+) -> tuple[bool, str]:
     if target_dir is None:
-        target_dir = Path(".")
+        target_dir = Path()
 
     # ## Optional: improve error cathcing w this library, or use sub-process below
     # repo_path = target_dir / repo_url.split("/")[-1]
@@ -156,13 +157,13 @@ def get_attr_from_repo(repo_path: Path, module_name: str, function_name: str) ->
     """
     # Construct the full module path
     full_module_path = repo_path / module_name
-    assert full_module_path.is_file(), f"Module {str(full_module_path)} not found"
+    assert full_module_path.is_file(), f"Module {full_module_path!s} not found"
 
     # Load the module
     spec = spec_from_file_location("loaded_module", str(full_module_path))
     assert (
         spec is not None and spec.loader is not None
-    ), f"module {module_name} not found in {str(full_module_path)}"
+    ), f"module {module_name} not found in {full_module_path!s}"
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
 

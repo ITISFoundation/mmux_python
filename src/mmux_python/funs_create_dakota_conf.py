@@ -1,12 +1,13 @@
 ### Useful functions to couple Python and Dakota - to use accross different scripts & notebooks
-from typing import List, Optional, Literal, Callable, Dict
-from pathlib import Path
 import shutil
+from collections.abc import Callable
+from pathlib import Path
+from typing import Literal
 
 
 def start_dakota_file(
-    top_method_pointer: Optional[str] = None,
-    results_file_name: Optional[str] = None,
+    top_method_pointer: str | None = None,
+    results_file_name: str | None = None,
 ) -> str:
     """Make the start of a Dakota input file - making it produce a 'results.dat' file"""
     if results_file_name is None:
@@ -22,7 +23,7 @@ def start_dakota_file(
 
 def add_adaptive_sampling(
     N_ADAPT: int,
-    training_samples_file: Optional[str] = None,
+    training_samples_file: str | None = None,
     id_method: str = "ADAPTIVE_SAMPLING",
     model_pointer: str = "TRUE_MODEL",
     seed=43,
@@ -61,11 +62,11 @@ def add_adaptive_sampling(
 
 
 def add_continuous_variables(
-    variables: List[str],
+    variables: list[str],
     id_variables="VARIABLES",
-    initial_points: Optional[List[float]] = None,
-    lower_bounds: Optional[List[float]] = None,
-    upper_bounds: Optional[List[float]] = None,
+    initial_points: list[float] | None = None,
+    lower_bounds: list[float] | None = None,
+    upper_bounds: list[float] | None = None,
     type: Literal["design", "state"] = "design",
 ) -> str:
     vars_str = f"""
@@ -108,7 +109,7 @@ def add_interface_s4l(n_jobs: int = 2, id_model="S4L_MODEL") -> str:
         """
 
 
-def add_responses(descriptors: List[str]) -> str:
+def add_responses(descriptors: list[str]) -> str:
     descriptors = descriptors if isinstance(descriptors, list) else [descriptors]
     return f"""
 
@@ -124,12 +125,12 @@ def add_responses(descriptors: List[str]) -> str:
 def add_surrogate_model(
     id_model: str = "SURR_MODEL",
     surrogate_type: str = "gaussian_process surfpack",
-    sumo_import_name: Optional[str] = None,
-    sumo_export_name: Optional[str] = None,
+    sumo_import_name: str | None = None,
+    sumo_export_name: str | None = None,
     export_import_format: str = "text_archive",
-    training_samples_file: Optional[str] = None,
-    id_sampling_method: Optional[str] = None,
-    cross_validation_folds: Optional[int] = None,
+    training_samples_file: str | None = None,
+    id_sampling_method: str | None = None,
+    cross_validation_folds: int | None = None,
 ) -> str:
     conf = f"""
         model
@@ -216,11 +217,11 @@ def add_iterative_sumo_optimization(
 def add_sampling_method(
     id_method: str = "SAMPLING",
     sampling_method: str = "lhs",
-    model_pointer: Optional[str] = None,
+    model_pointer: str | None = None,
     num_samples: int = 10,
     seed: int = 1234,
     refinement: bool = False,
-    refinement_samples: Optional[int] = None,
+    refinement_samples: int | None = None,
 ) -> str:
     conf = f"""
         method
@@ -274,11 +275,13 @@ def add_moga_method(
     maxIterations=100,
     max_function_evaluations=None,
     fitnessType: Literal["layer_rank", "domination_count"] = "layer_rank",
-    replacementType: Literal["elitist", "unique_roulette_wheel", "below_limit"] = "elitist", # N.B. roulette_wheel not working in dakota 6.19
+    replacementType: Literal[
+        "elitist", "unique_roulette_wheel", "below_limit"
+    ] = "elitist",  # N.B. roulette_wheel not working in dakota 6.19
     id_method="MOGA",
     seed=12345,
     ############ not exposed in MMUX ####################
-    max_designs=32,  
+    max_designs=32,
     crossover_type: str = "multi_point_real 5",
     mutation_type: str = "offset_uniform",
     #####################################################
@@ -294,7 +297,7 @@ def add_moga_method(
 
             ## hyperparameters taken from Medtronic's pulse shape optimization
             fitness_type
-                {fitnessType}  
+                {fitnessType}
             crossover_type
                 {crossover_type}
             mutation_type
@@ -352,10 +355,10 @@ def create_function_sampling_conffile(
     num_samples: int = 100,
     seed: int = 1234,
     batch_mode: bool = True,  ## always active here
-    lower_bounds: Optional[list] = None,
-    upper_bounds: Optional[list] = None,
-    dakota_conf_file: Optional[Path] = None,  # "dakota_sampling.in",
-    dakota_results_file: Optional[Path] = None,  # "results_sampling.dat",
+    lower_bounds: list | None = None,
+    upper_bounds: list | None = None,
+    dakota_conf_file: Path | None = None,  # "dakota_sampling.in",
+    dakota_results_file: Path | None = None,  # "results_sampling.dat",
 ) -> str:
     """Creates an LHS sampling for the given function. The function object is necessary to
     retrieve its input and output labels.
@@ -403,11 +406,11 @@ def create_sumo_evaluation_conffile(
     # surrogate_type: Optional[str] = None, ## for now, always GP
     # TODO be able to load sumo (instead of building every time)
     samples_file: Path,
-    input_variables: List[str],
-    output_responses: List[str],
-    dakota_conf_file: Optional[str | Path] = None,
-    sumo_import_name: Optional[str] = None,
-    sumo_export_name: Optional[str] = None,
+    input_variables: list[str],
+    output_responses: list[str],
+    dakota_conf_file: str | Path | None = None,
+    sumo_import_name: str | None = None,
+    sumo_export_name: str | None = None,
 ) -> str:
     dakota_conf = start_dakota_file()
     dakota_conf += add_surrogate_model(
@@ -427,9 +430,9 @@ def create_sumo_evaluation_conffile(
 
 def create_export_sumo_conffile(
     build_file: Path,
-    input_variables: List[str],
-    output_responses: List[str],
-    dakota_conf_file: Optional[str | Path] = None,
+    input_variables: list[str],
+    output_responses: list[str],
+    dakota_conf_file: str | Path | None = None,
 ) -> str:
     dakota_conf = start_dakota_file()
     dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
@@ -444,12 +447,12 @@ def create_uq_propagation_conffile(
     build_file: Path,
     # surrogate_type: Optional[str] = None, ## for now, always GP
     # TODO be able to load sumo (instead of building every time)
-    input_variables: List[str],
-    input_means: Dict[str, float],
-    input_stds: Dict[str, float],
-    output_responses: List[str],
+    input_variables: list[str],
+    input_means: dict[str, float],
+    input_stds: dict[str, float],
+    output_responses: list[str],
     n_samples: int = 10000,
-    dakota_conf_file: Optional[str | Path] = None,
+    dakota_conf_file: str | Path | None = None,
 ) -> str:
     dakota_conf = start_dakota_file()
     dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
@@ -474,17 +477,18 @@ def create_uq_propagation_conffile(
 
 def create_sumo_crossvalidation_conffile(
     build_file: Path,
-    input_variables: List[str],
-    output_responses: List[str],
-    dakota_conf_file: Optional[str | Path] = None,
-    N_CROSS_VALIDATION = 5
+    input_variables: list[str],
+    output_responses: list[str],
+    dakota_conf_file: str | Path | None = None,
+    N_CROSS_VALIDATION=5,
 ):
     dakota_conf = start_dakota_file()
     dakota_conf += add_surrogate_model(
-        training_samples_file = str(build_file.resolve()),
+        training_samples_file=str(build_file.resolve()),
         cross_validation_folds=N_CROSS_VALIDATION,
     )
     from funs_data_processing import process_input_file
+
     JUST_INPUTS_FILE = process_input_file(
         build_file,
         columns_to_remove=output_responses,
@@ -507,12 +511,13 @@ def create_sumo_crossvalidation_conffile(
 def create_sumo_manual_crossvalidation_conffile(
     fold_run_dir: Path,
     build_file: Path,
-    input_variables: List[str],
+    input_variables: list[str],
     output_response: str,
-    validation_indices: List[int],
-    dakota_conf_file: Optional[str | Path] = None,
+    validation_indices: list[int],
+    dakota_conf_file: str | Path | None = None,
 ):
-    from funs_data_processing import process_input_file, load_data
+    from funs_data_processing import load_data, process_input_file
+
     dakota_conf = start_dakota_file()
     n_samples = len(load_data(build_file))
     print(f"Number of samples in the build file: {n_samples}")
@@ -521,26 +526,30 @@ def create_sumo_manual_crossvalidation_conffile(
         build_file,
         keep_idxs=[i for i in range(n_samples) if i not in validation_indices],
         columns_to_keep=input_variables + [output_response],
-        suffix="training"
+        suffix="training",
     )
-    TRAINING_SAMPLES_FILE = Path(shutil.move(
-        str(TRAINING_SAMPLES_FILE.resolve()),
-        str(fold_run_dir / TRAINING_SAMPLES_FILE.name)  # move to the fold run dir
-    ))
+    TRAINING_SAMPLES_FILE = Path(
+        shutil.move(
+            str(TRAINING_SAMPLES_FILE.resolve()),
+            str(fold_run_dir / TRAINING_SAMPLES_FILE.name),  # move to the fold run dir
+        )
+    )
     dakota_conf += add_surrogate_model(
-        training_samples_file = str(TRAINING_SAMPLES_FILE.resolve()),
+        training_samples_file=str(TRAINING_SAMPLES_FILE.resolve()),
     )
     #
     JUST_INPUTS_FILE = process_input_file(
         build_file,
-        keep_idxs= validation_indices,
+        keep_idxs=validation_indices,
         columns_to_keep=input_variables,
-        suffix="validation"
+        suffix="validation",
     )
-    JUST_INPUTS_FILE = Path(shutil.move(
-        str(JUST_INPUTS_FILE.resolve()),
-        str(fold_run_dir / JUST_INPUTS_FILE.name)  # move to the fold run dir
-    ))
+    JUST_INPUTS_FILE = Path(
+        shutil.move(
+            str(JUST_INPUTS_FILE.resolve()),
+            str(fold_run_dir / JUST_INPUTS_FILE.name),  # move to the fold run dir
+        )
+    )
     ## For some freaking reason, there are 6 points in JUST_INPUTS_FILE and 9 get evaluated!!
     print("Build file: ", build_file)
     print("Training samples file: ", TRAINING_SAMPLES_FILE)
@@ -562,12 +571,12 @@ def create_sumo_manual_crossvalidation_conffile(
 
 def create_moga_optimization_conffile(
     build_file: Path,
-    input_variables: List[str],
-    output_responses: List[str],
+    input_variables: list[str],
+    output_responses: list[str],
     moga_kwargs: dict,
-    lower_bounds: Optional[list] = None,
-    upper_bounds: Optional[list] = None,
-    dakota_conf_file: Optional[str | Path] = None,
+    lower_bounds: list | None = None,
+    upper_bounds: list | None = None,
+    dakota_conf_file: str | Path | None = None,
 ):
     dakota_conf = start_dakota_file()
     dakota_conf += add_surrogate_model(training_samples_file=str(build_file.resolve()))
@@ -588,16 +597,17 @@ def create_moga_optimization_conffile(
         write_to_file(dakota_conf, dakota_conf_file)
     return dakota_conf
 
+
 def create_moga_iterative_optimization_conffile(
-    input_variables: List[str],
-    output_responses: List[str],
+    input_variables: list[str],
+    output_responses: list[str],
     max_iterations: int,
     moga_kwargs: dict,
     batch_mode: bool = True,  ## always active here
-    lower_bounds: Optional[list] = None,
-    upper_bounds: Optional[list] = None,
-    dakota_conf_file: Optional[str | Path] = None,
-    dakota_results_file: Optional[Path] = None,
+    lower_bounds: list | None = None,
+    upper_bounds: list | None = None,
+    dakota_conf_file: str | Path | None = None,
+    dakota_results_file: Path | None = None,
 ):
     ## TODO need to debug
     dakota_conf = start_dakota_file(

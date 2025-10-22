@@ -1,34 +1,35 @@
-from pathlib import Path
 import datetime
 import os
 import re
-import uuid
-import pandas as pd
-import numpy as np # type: ignore
 import shutil
-from typing import List, Literal, Optional, Callable, Dict
+import sys
+import uuid
+from collections.abc import Callable
+from pathlib import Path
+from typing import Literal
+
+import numpy as np  # type: ignore
+import pandas as pd
 from sklearn.model_selection import KFold
 
-import sys
 sys.path.append(str(Path(__file__).parent))
 from dakota_object import DakotaObject
 from funs_create_dakota_conf import (
-    create_sumo_evaluation_conffile, 
-    create_uq_propagation_conffile, 
-    create_sumo_crossvalidation_conffile, 
-    create_sumo_manual_crossvalidation_conffile, 
     create_moga_optimization_conffile,
+    create_sumo_crossvalidation_conffile,
+    create_sumo_evaluation_conffile,
+    create_sumo_manual_crossvalidation_conffile,
+    create_uq_propagation_conffile,
 )
 from funs_data_processing import (
-    sanitize_varnames,
+    create_grid_samples,
     create_samples_along_axes,
     extract_predictions_along_axes,
-    create_grid_samples,
     extract_predictions_gridpoints,
+    get_bounds_uniform_distributions,
     get_results,
     load_data,
-    get_non_dominated_indices,
-    get_bounds_uniform_distributions
+    sanitize_varnames,
 )
 
 
@@ -43,21 +44,22 @@ def create_run_dir(script_dir: Path, dir_name: str = "sampling"):
     print("temp_dir: ", temp_dir)
     return temp_dir
 
+
 def retrieve_csv_result(
-    csv_file_path: str, inputs: Dict[str, float], outputs: Optional[List[str]] = None
-) -> Dict[str, float]:
+    csv_file_path: str, inputs: dict[str, float], outputs: list[str] | None = None
+) -> dict[str, float]:
     """
     Retrieve the result from a csv file.
     """
 
     df = pd.read_csv(csv_file_path)
 
-    for col in inputs.keys():
+    for col in inputs:
         if col not in df.columns:
             raise ValueError(
                 f"Input {col} not in the csv file. Columns are: {df.columns.values}"
             )
-            
+
     if outputs is not None:
         for col in outputs:
             if col not in df.columns:
@@ -73,20 +75,21 @@ def retrieve_csv_result(
 
     return result.iloc[0].to_dict()
 
+
 def evaluate_sumo_along_axes(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
-    input_vars: List[str],
+    input_vars: list[str],
     response_var: str,
-    cut_values: Optional[Dict[str, float]] = None,
-    sumo_import_name: Optional[str] = None,
-    sumo_export_name: Optional[str] = None,
+    cut_values: dict[str, float] | None = None,
+    sumo_import_name: str | None = None,
+    sumo_export_name: str | None = None,
     NSAMPLESPERVAR: int = 21,
     xscale: Literal["linear", "log"] = "linear",
     yscale: Literal["linear", "log"] = "linear",
-    label_converter: Optional[Callable] = None,
+    label_converter: Callable | None = None,
     MAKEPLOT: bool = False,
-) -> Dict[str, Dict[str, np.ndarray]]:
+) -> dict[str, dict[str, np.ndarray]]:
     """Given a training data to create a SuMo, generate it, and plot the profile along the central axes
     (e.g. all variables but the sweeped one will be set to its central value).
     No callback is necessary (everything internal to Dakota).
@@ -98,7 +101,7 @@ def evaluate_sumo_along_axes(
     input_vars = sanitize_varnames(input_vars)
     response_var = sanitize_varnames(response_var)
     cut_values = sanitize_varnames(cut_values) if cut_values else None
-    
+
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_SWEEP_INPUT_FILE = create_samples_along_axes(
@@ -131,18 +134,19 @@ def evaluate_sumo_along_axes(
     )
     return results
 
+
 ### TODO refactor in new MMUX-compatible version (like above)
 def propagate_uq(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
-    input_vars: List[str],
+    input_vars: list[str],
     output_response: str,
-    means: Dict[str, float],
-    stds: Dict[str, float],
+    means: dict[str, float],
+    stds: dict[str, float],
     n_samples: int = 1000,
     xscale: Literal["linear", "log"] = "linear",
-    label_converter: Optional[Callable] = None,
-) -> List[float]:
+    label_converter: Callable | None = None,
+) -> list[float]:
     input_vars = sanitize_varnames(input_vars)
     output_response = sanitize_varnames(output_response)
     means = {sanitize_varnames(k): v for k, v in means.items()}
@@ -161,16 +165,18 @@ def propagate_uq(
     # run dakota
     dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
-    x = get_results(run_dir / f"predictions.dat", output_response)
+    x = get_results(run_dir / "predictions.dat", output_response)
     return x.tolist()
+
 
 def _parse_crossvalidation_outputlogs(log_output: str, N_CROSS_VALIDATION: int):
 
     variable_name_pattern = (
-        f"Surrogate quality metrics \({N_CROSS_VALIDATION}-fold CV\) for (\w+):"
+        rf"Surrogate quality metrics \({N_CROSS_VALIDATION}-fold CV\) for (\w+):"
     )
-    metrics_pattern = r"\s+(root_mean_squared|sum_abs|mean_abs|max_abs)\s+([\d.e+-]+|nan)"
-
+    metrics_pattern = (
+        r"\s+(root_mean_squared|sum_abs|mean_abs|max_abs)\s+([\d.e+-]+|nan)"
+    )
 
     # Find all occurrences of variable names in the log
     variables = re.findall(variable_name_pattern, log_output)
@@ -204,10 +210,11 @@ def _parse_crossvalidation_outputlogs(log_output: str, N_CROSS_VALIDATION: int):
     print(parsed_error_metrics)
     return parsed_error_metrics
 
+
 def evaluate_sumo_crossvalidation(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
-    input_vars: List[str],
+    input_vars: list[str],
     output_response: str,
     N_CROSS_VALIDATION: int = 5,
 ):
@@ -215,25 +222,27 @@ def evaluate_sumo_crossvalidation(
     output_response = sanitize_varnames(output_response)
 
     dakota_conf = create_sumo_crossvalidation_conffile(
-        PROCESSED_TRAINING_FILE, 
+        PROCESSED_TRAINING_FILE,
         input_vars,
         [output_response],
         N_CROSS_VALIDATION=N_CROSS_VALIDATION,
     )
-        # run dakota
+    # run dakota
     dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
     ## TODO I was parsing from the stdout. How to do it now?
     log_output = ""
-    parsed_error_metrics = _parse_crossvalidation_outputlogs(log_output, 
-                                                             N_CROSS_VALIDATION)
-    
-    return parsed_error_metrics 
+    parsed_error_metrics = _parse_crossvalidation_outputlogs(
+        log_output, N_CROSS_VALIDATION
+    )
+
+    return parsed_error_metrics
+
 
 def evaluate_sumo_manual_crossvalidation(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
-    input_vars: List[str],
+    input_vars: list[str],
     output_response: str,
     N_CROSS_VALIDATION: int = 5,
 ):
@@ -258,19 +267,23 @@ def evaluate_sumo_manual_crossvalidation(
             input_vars,
             output_response,
             validation_indices=val_idx.tolist(),
-            dakota_conf_file= fold_run_dir / "dakota_config.in",
+            dakota_conf_file=fold_run_dir / "dakota_config.in",
         )
         dakobj = DakotaObject()
         dakobj.run(dakota_conf, fold_run_dir)
 
         # Extract predictions for this fold and store in the correct positions
-        fold_predictions = get_results(fold_run_dir / "predictions.dat", output_response)
+        fold_predictions = get_results(
+            fold_run_dir / "predictions.dat", output_response
+        )
         print(f"Fold {fold} predictions: {fold_predictions}")
         print(f"Validation indices: {val_idx}")
-        
+
         all_predictions[val_idx] = fold_predictions
         if (fold_run_dir / "variances.dat").is_file():
-            fold_var = get_results(fold_run_dir / "variances.dat", output_response+"_variance")
+            fold_var = get_results(
+                fold_run_dir / "variances.dat", output_response + "_variance"
+            )
             all_stds[val_idx] = np.sqrt(fold_var)
 
     return {
@@ -279,13 +292,14 @@ def evaluate_sumo_manual_crossvalidation(
         output_response + "_std_hat": all_stds.tolist(),
     }
 
+
 def evaluate_sumo(
-    run_dir: Path, 
+    run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
     PROCESSED_EVALUATION_SAMPLES_FILE: Path,
-    input_vars: List[str],
+    input_vars: list[str],
     response_var: str,
-) -> Dict[str, List[float]]:
+) -> dict[str, list[float]]:
     input_vars = sanitize_varnames(input_vars)
     response_var = sanitize_varnames(response_var)
 
@@ -304,20 +318,24 @@ def evaluate_sumo(
     dakobj = DakotaObject()
     dakobj.run(dakota_conf, run_dir)
 
-    results = {response_var+"_hat": get_results(run_dir / "predictions.dat", response_var).tolist()}
+    results = {
+        response_var
+        + "_hat": get_results(run_dir / "predictions.dat", response_var).tolist()
+    }
     if (run_dir / "variances.dat").is_file():
         variances = get_results(run_dir / "variances.dat", response_var + "_variance")
         results[response_var + "_std_hat"] = np.sqrt(variances).tolist()
 
     return results
 
+
 def evaluate_sumo_on_grid(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
-    grid_vars: List[str],
-    input_vars: List[str],
+    grid_vars: list[str],
+    input_vars: list[str],
     response_var: str,
-    cut_values: Optional[Dict[str, float]] = None,
+    cut_values: dict[str, float] | None = None,
     # sumo_import_name: Optional[str] = None,
     # sumo_export_name: Optional[str] = None,
     NSAMPLESPERVAR: int = 21,
@@ -325,7 +343,7 @@ def evaluate_sumo_on_grid(
     # yscale: Literal["linear", "log"] = "linear",
     # label_converter: Optional[Callable] = None,
     # MAKEPLOT: bool = False,
-) -> Dict[str, List[float]]:
+) -> dict[str, list[float]]:
     """Given a training data to create a SuMo, generate it, and evaluate on a grid of points.
     The grid is created by sweeping the variables in `grid_vars` over their min and max values,
     while the other variables in `input_vars` are set to their central values.
@@ -336,7 +354,9 @@ def evaluate_sumo_on_grid(
     Log / Linear scale of the variable is inferred its name; mean value is taken in the corresponding scale.
     Plots scales (after SuMo creation and sampling) can be either linear or logarithmic.
     """
-    NPOINTSPERDIMENSION = [NSAMPLESPERVAR] * len(input_vars)  # default number of points per dimension
+    NPOINTSPERDIMENSION = [NSAMPLESPERVAR] * len(
+        input_vars
+    )  # default number of points per dimension
     grid_vars = sanitize_varnames(grid_vars)
     input_vars = sanitize_varnames(input_vars)
     response_var = sanitize_varnames(response_var)
@@ -345,12 +365,20 @@ def evaluate_sumo_on_grid(
     # create sweeps data
     data = pd.read_csv(PROCESSED_TRAINING_FILE, sep=" ")
     PROCESSED_GRIDPOINTS_INPUT_FILE = create_grid_samples(
-        run_dir = run_dir,
-        grid_vars = grid_vars,
-        input_vars = input_vars,
-        mins = [data[var].min() for var in input_vars], ## TODO it is here that we should use the distribution values (passed directly from the frontend)
-        cut_values = [cut_values[var] for var in input_vars] if cut_values else [data[var].mean() for var in input_vars],
-        maxs = [data[var].max() for var in input_vars], # TODO it is here that we should use the distribution values (passed directly from the frontend)
+        run_dir=run_dir,
+        grid_vars=grid_vars,
+        input_vars=input_vars,
+        mins=[
+            data[var].min() for var in input_vars
+        ],  ## TODO it is here that we should use the distribution values (passed directly from the frontend)
+        cut_values=(
+            [cut_values[var] for var in input_vars]
+            if cut_values
+            else [data[var].mean() for var in input_vars]
+        ),
+        maxs=[
+            data[var].max() for var in input_vars
+        ],  # TODO it is here that we should use the distribution values (passed directly from the frontend)
         n_points_per_dimension=NPOINTSPERDIMENSION,
     )
 
@@ -371,31 +399,40 @@ def evaluate_sumo_on_grid(
     results = extract_predictions_gridpoints(
         run_dir, response_var, input_vars, NSAMPLESPERVAR
     )
-    
-    if len(grid_vars) == 2: ## this is not necessary for 3D
+
+    if len(grid_vars) == 2:  ## this is not necessary for 3D
         output = np.array(results[response_var])
-        reshape_indices = [NPOINTSPERDIMENSION[i] for i in range(len(input_vars)) if input_vars[i] in grid_vars ]
+        reshape_indices = [
+            NPOINTSPERDIMENSION[i]
+            for i in range(len(input_vars))
+            if input_vars[i] in grid_vars
+        ]
         if grid_vars[0] in input_vars[:2] and grid_vars[1] in input_vars[:2]:
             ## reshape fills in row order. For some reason, this needs to be done reversed in XY / YX cases
             ## but NOT for any other input combination...
-            output = output.reshape(reshape_indices[::-1]).T  
+            output = output.reshape(reshape_indices[::-1]).T
         else:
             output = output.reshape(reshape_indices)
-        input_vars_in_grid_vars = [var for var in input_vars if var in grid_vars ]
-        transpose_indices = [input_vars_in_grid_vars.index(grid_vars[i]) for i in range(len(grid_vars))]
-        final_output = output.transpose(transpose_indices[::-1]) # ZX, XZ, YZ, ZY work; but not YX, XY. Why??? 
+        input_vars_in_grid_vars = [var for var in input_vars if var in grid_vars]
+        transpose_indices = [
+            input_vars_in_grid_vars.index(grid_vars[i]) for i in range(len(grid_vars))
+        ]
+        final_output = output.transpose(
+            transpose_indices[::-1]
+        )  # ZX, XZ, YZ, ZY work; but not YX, XY. Why???
         results[response_var] = final_output.tolist()
-        
+
     return results
+
 
 def perform_moga_optimization(
     run_dir: Path,
     PROCESSED_TRAINING_FILE: Path,
-    input_vars: List[str],
-    distributions: Dict[str, Dict[str, float]],
-    output_responses: List[str],
+    input_vars: list[str],
+    distributions: dict[str, dict[str, float]],
+    output_responses: list[str],
     moga_kwargs: dict,
-) -> Dict[str, List[float | int]]:
+) -> dict[str, list[float | int]]:
     print(f"minimizing {', '.join(output_responses)}")
 
     input_vars = sanitize_varnames(input_vars)
@@ -403,7 +440,9 @@ def perform_moga_optimization(
     distributions = sanitize_varnames(distributions)
 
     # assumes uniform distribution for MOGA - raises Error otherwise
-    lower_bounds, upper_bounds = get_bounds_uniform_distributions(input_vars, distributions)
+    lower_bounds, upper_bounds = get_bounds_uniform_distributions(
+        input_vars, distributions
+    )
 
     # create dakota file
     dakota_conf = create_moga_optimization_conffile(
@@ -422,10 +461,10 @@ def perform_moga_optimization(
 
     results = {}
     for res in output_responses:
-        x = get_results(run_dir / f"predictions.dat", res)
+        x = get_results(run_dir / "predictions.dat", res)
         results[res] = x.tolist()
     for inv in input_vars:
-        x = get_results(run_dir / f"predictions.dat", inv)
+        x = get_results(run_dir / "predictions.dat", inv)
         results[inv] = x.tolist()
 
     return results

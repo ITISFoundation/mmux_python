@@ -1,11 +1,12 @@
-import contextlib
-import os
-from pathlib import Path
-import dakota.environment as dakenv # type: ignore
-import logging
-import wiofiles as wio
-import sys
 import concurrent.futures
+import contextlib
+import logging
+import os
+import sys
+from pathlib import Path
+
+import dakota.environment as dakenv  # type: ignore
+import wiofiles as wio
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +25,16 @@ def working_directory(path):
 # Static function to execute Dakota - needs to be at module level to be picklable
 def _dak_exec_static(conf):
     """Static version of dak_exec that can be pickled for multiprocessing."""
-    study = dakenv.study(callback=None, input_string=conf) # type: ignore
+    study = dakenv.study(callback=None, input_string=conf)  # type: ignore
     stdoutstr, stderrstr = None, None
-    with wio.capture_to_file(stdout='./stdout', stderr='./stderr') as (stdout, stderr):
+    with wio.capture_to_file(stdout="./stdout", stderr="./stderr") as (stdout, stderr):
         study.execute()
     with open(stdout) as outf, open(stderr) as errf:
         stdoutstr = outf.read()
         stderrstr = errf.read()
     del study
     return stdoutstr, stderrstr
+
 
 class DakotaObject:
     def __init__(self) -> None:
@@ -44,14 +46,17 @@ class DakotaObject:
             # Create a picklable version of the callback
             stdout, stderr = self.future_exec(conf=dakota_conf)
             print("Dakota run finished")
-            with open("dakota_stdout.txt", "w") as f_out, open("dakota_stderr.txt", "w") as f_err:
+            with (
+                open("dakota_stdout.txt", "w") as f_out,
+                open("dakota_stderr.txt", "w") as f_err,
+            ):
                 if stdout:
                     f_out.write(stdout)
                 if stderr:
                     f_err.write(stderr)
             if stderr:
                 print(stderr, file=sys.stderr)
-                
+
     def future_exec(self, conf):
         # Use the static function directly rather than the instance method
         with concurrent.futures.ProcessPoolExecutor(1) as pool:

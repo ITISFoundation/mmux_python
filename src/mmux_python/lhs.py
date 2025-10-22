@@ -6,21 +6,25 @@ Scilab:
     Copyright (C) 2010 - 2011 - INRIA - Michael Baudin
     Copyright (C) 2009 - Yann Collette
     Copyright (C) 2009 - CEA - Jean-Marc Martinez
-The present code is a modification of the pyDOE package implementation with some extras, including 
+The present code is a modification of the pyDOE package implementation with some extras, including
 an optional seed argument for experiments reproduction.
 """
 
 import numpy as np
-from scipy import spatial
-from scipy import stats
-from scipy import linalg
 from numpy import ma
-from typing import Optional
+from scipy import linalg, spatial, stats
 
-__all__ = ['lhs']
+__all__ = ["lhs"]
 
 
-def lhs(n: int, k: int, method: Optional[str]=None, iter:Optional[int]=None, seed: Optional[int]=None, corr_matrix :Optional[np.ndarray]= None) -> np.ndarray:
+def lhs(
+    n: int,
+    k: int,
+    method: str | None = None,
+    iter: int | None = None,
+    seed: int | None = None,
+    corr_matrix: np.ndarray | None = None,
+) -> np.ndarray:
     """
     Generate a latin-hypercube design
     Parameters
@@ -56,28 +60,36 @@ def lhs(n: int, k: int, method: Optional[str]=None, iter:Optional[int]=None, see
         seed = np.random.RandomState(seed)
 
     if method is not None:
-        if not method.lower() in ('center', 'c', 'maximin', 'm',
-                                     'centermaximin', 'cm', 'correlation',
-                                     'corr','lhsmu'):
-            raise ValueError('Invalid value for "method": {}'.format(method))
+        if method.lower() not in (
+            "center",
+            "c",
+            "maximin",
+            "m",
+            "centermaximin",
+            "cm",
+            "correlation",
+            "corr",
+            "lhsmu",
+        ):
+            raise ValueError(f'Invalid value for "method": {method}')
     else:
         H = _lhsclassic(n, k, seed)
 
     if method is None:
-        method = 'center'
+        method = "center"
     if iter is None:
         iter = 5
 
     if H is None:
-        if method.lower() in ('center', 'c'):
+        if method.lower() in ("center", "c"):
             H = _lhscentered(n, k, seed)
-        elif method.lower() in ('maximin', 'm'):
-            H = _lhsmaximin(n, k, iter, 'maximin', seed)
-        elif method.lower() in ('centermaximin', 'cm'):
-            H = _lhsmaximin(n, k, iter, 'centermaximin', seed)
-        elif method.lower() in ('correlation', 'corr'):
+        elif method.lower() in ("maximin", "m"):
+            H = _lhsmaximin(n, k, iter, "maximin", seed)
+        elif method.lower() in ("centermaximin", "cm"):
+            H = _lhsmaximin(n, k, iter, "centermaximin", seed)
+        elif method.lower() in ("correlation", "corr"):
             H = _lhscorrelate(n, k, iter, seed)
-        elif method.lower() in ('lhsmu'):
+        elif method.lower() in ("lhsmu"):
             H = _lhsmu(n, k, corr_matrix, seed)
 
     return H
@@ -85,75 +97,75 @@ def lhs(n: int, k: int, method: Optional[str]=None, iter:Optional[int]=None, see
 
 def _lhsclassic(n, k, randomstate):
     # generate the intervals
-    cut = np.linspace(0, 1, k + 1)    
-    
+    cut = np.linspace(0, 1, k + 1)
+
     # fill points uniformly in each interval
     u = randomstate.rand(k, n)
     a = cut[:k]
-    b = cut[1:k + 1]
+    b = cut[1 : k + 1]
     rdpoints = np.zeros_like(u)
     for j in range(n):
-        rdpoints[:, j] = u[:, j]*(b-a) + a
-    
+        rdpoints[:, j] = u[:, j] * (b - a) + a
+
     # make the random pairings
     H = np.zeros_like(rdpoints)
     for j in range(n):
         order = randomstate.permutation(range(k))
         H[:, j] = rdpoints[order, j]
-    
+
     return H
-    
+
 
 def _lhscentered(n, k, randomstate):
     # generate the intervals
-    cut = np.linspace(0, 1, k + 1)    
-    
+    cut = np.linspace(0, 1, k + 1)
+
     # fill points uniformly in each interval
     u = randomstate.rand(k, n)
     a = cut[:k]
-    b = cut[1:k + 1]
-    _center = (a + b)/2
-    
+    b = cut[1 : k + 1]
+    _center = (a + b) / 2
+
     # make the random pairings
     H = np.zeros_like(u)
     for j in range(n):
         H[:, j] = randomstate.permutation(_center)
-    
+
     return H
-    
+
 
 def _lhsmaximin(n, k, iter, lhstype, randomstate):
     maxdist = 0
-    
+
     # maximize the minimum distance between points
     for i in range(iter):
-        if lhstype=='maximin':
+        if lhstype == "maximin":
             Hcandidate = _lhsclassic(n, k, randomstate)
         else:
             Hcandidate = _lhscentered(n, k, randomstate)
-        
-        d = spatial.distance.pdist(Hcandidate, 'euclidean')
-        if maxdist<np.min(d):
+
+        d = spatial.distance.pdist(Hcandidate, "euclidean")
+        if maxdist < np.min(d):
             maxdist = np.min(d)
             H = Hcandidate.copy()
-    
+
     return H
 
 
 def _lhscorrelate(n, k, iter, randomstate):
     mincorr = np.inf
-    
+
     # minimize the components correlation coefficients
     for i in range(iter):
         # generate a random LHS
         Hcandidate = _lhsclassic(n, k, randomstate)
         R = np.corrcoef(Hcandidate.T)
-        if np.max(np.abs(R[R!=1]))<mincorr:
-            mincorr = np.max(np.abs(R-np.eye(R.shape[0])))
+        if np.max(np.abs(R[R != 1])) < mincorr:
+            mincorr = np.max(np.abs(R - np.eye(R.shape[0])))
             H = Hcandidate.copy()
-    
+
     return H
- 
+
 
 def _lhsmu(n, k, corr=None, seed=None):
 
@@ -162,16 +174,16 @@ def _lhsmu(n, k, corr=None, seed=None):
     elif not isinstance(seed, np.random.RandomState):
         seed = np.random.RandomState(seed)
 
-    I = 5*k
+    I = 5 * k
 
     rdpoints = seed.uniform(size=(I, n))
 
-    dist = spatial.distance.cdist(rdpoints, rdpoints, metric='euclidean')
+    dist = spatial.distance.cdist(rdpoints, rdpoints, metric="euclidean")
     D_ij = ma.masked_array(dist, mask=np.identity(I))
 
-    index_rm = np.zeros(I-k, dtype=int)
+    index_rm = np.zeros(I - k, dtype=int)
     i = 0
-    while i < I-k:
+    while i < I - k:
         order = ma.sort(D_ij, axis=1)
 
         avg_dist = ma.mean(order[:, 0:2], axis=1)
@@ -185,7 +197,7 @@ def _lhsmu(n, k, corr=None, seed=None):
 
     rdpoints = np.delete(rdpoints, index_rm, axis=0)
 
-    if(corr is not None):
+    if corr is not None:
         # check if covariance matrix is valid
         assert type(corr) == np.ndarray
         assert corr.ndim == 2
@@ -203,8 +215,8 @@ def _lhsmu(n, k, corr=None, seed=None):
         rank = np.argsort(rdpoints, axis=0)
 
         for l in range(k):
-            low = float(l)/k
-            high = float(l+1)/k
+            low = float(l) / k
+            high = float(l + 1) / k
 
             l_pos = rank == l
             H[l_pos] = seed.uniform(low, high, size=n)

@@ -1,19 +1,22 @@
-from typing import List, Optional, Callable, Dict, TypeVar, overload, Literal, Tuple
-import os
-import json
-import numpy as np # type: ignore
-import pandas as pd
-from pathlib import Path
 import copy
+import json
+import os
 import re
+from collections.abc import Callable
+from pathlib import Path
+from typing import Literal, TypeVar, overload
 
-def _parse_data(file: str | Path) -> List[List[str]]:
+import numpy as np  # type: ignore
+import pandas as pd
+
+
+def _parse_data(file: str | Path) -> list[list[str]]:
     """
     Parse a space-delimited text file into a list of lists.
-    
+
     Args:
         file: Path to the file to parse
-        
+
     Returns:
         List of lines, where each line is split into a list of values
     """
@@ -24,7 +27,9 @@ def _parse_data(file: str | Path) -> List[List[str]]:
 
 
 def _parse_json_dict(file: str | Path):
-    print("DEPRECATED! _parse_json_dict was used with the old ParallelRunner input files")
+    print(
+        "DEPRECATED! _parse_json_dict was used with the old ParallelRunner input files"
+    )
     with open(file) as f:
         data_dict = json.load(f)["tasks"]
 
@@ -58,7 +63,7 @@ def process_json_file(file: str) -> str:
     return processed_file
 
 
-def get_variable_names(file: str | Path) -> List[str]:
+def get_variable_names(file: str | Path) -> list[str]:
     file = Path(file)
     assert file.exists(), f"File {file} does not exist"
     _, ext = os.path.splitext(file)
@@ -76,7 +81,7 @@ def get_variable_names(file: str | Path) -> List[str]:
 
 
 def load_data(
-    files: str | Path | List[Path],
+    files: str | Path | list[Path],
 ) -> pd.DataFrame:
     dfs = []
     if isinstance(files, (str, Path)):
@@ -103,11 +108,11 @@ def load_data(
 
 
 def process_input_file(
-    files: str | Path | List[Path],
-    columns_to_keep: Optional[List[str]] = None,
-    columns_to_remove: List[str] = ["interface"],
-    make_log: Optional[bool | List[str]] = None,
-    custom_operations: Optional[Callable] = None,
+    files: str | Path | list[Path],
+    columns_to_keep: list[str] | None = None,
+    columns_to_remove: list[str] = ["interface"],
+    make_log: bool | list[str] | None = None,
+    custom_operations: Callable | None = None,
     suffix: str = "processed",
     **kwargs,
 ) -> Path:
@@ -128,15 +133,18 @@ def process_input_file(
         files = [Path(files)]
     df = load_data(files)
     df = _filter_data(df, **kwargs)
-    
 
     if custom_operations:
         df: pd.DataFrame = custom_operations(df)
-        
+
     if columns_to_keep:
-        columns_to_keep = [sanitize_varname(c) for c in columns_to_keep if c in df.columns or sanitize_varname(c) in df.columns]
+        columns_to_keep = [
+            sanitize_varname(c)
+            for c in columns_to_keep
+            if c in df.columns or sanitize_varname(c) in df.columns
+        ]
         df.columns = [sanitize_varname(col) for col in df.columns]
-        df = df[columns_to_keep] # type: ignore
+        df = df[columns_to_keep]  # type: ignore
     else:
         for c in columns_to_remove:
             c_sanitized = sanitize_varname(c)
@@ -147,7 +155,7 @@ def process_input_file(
 
     # Replace spaces and special chars in column names
     df.columns = [sanitize_varname(col) for col in df.columns]
-    
+
     if r"%eval_id" in df.columns:
         df[r"%eval_id"] = np.arange(1, len(df) + 1)
 
@@ -159,7 +167,7 @@ def process_input_file(
                 df.rename(columns={var: "log_" + var}, inplace=True)
 
     processed_file = Path(
-        "_".join([os.path.splitext(f)[0] for f in files]+[suffix]) + ".txt"
+        "_".join([os.path.splitext(f)[0] for f in files] + [suffix]) + ".txt"
     )
     df.to_csv(processed_file, sep=" ", index=False)
     return processed_file
@@ -167,10 +175,10 @@ def process_input_file(
 
 def _filter_data(
     df: pd.DataFrame,
-    keep_idxs: Optional[List[int]] = None,
-    filter_N_samples: Optional[int] = None,
-    filter_highest_N: Optional[int] = None,
-    filter_highest_N_variable: Optional[str] = None,
+    keep_idxs: list[int] | None = None,
+    filter_N_samples: int | None = None,
+    filter_highest_N: int | None = None,
+    filter_highest_N_variable: str | None = None,
 ) -> pd.DataFrame:
     """
     The following arguments are optional and can be used to select specific parts of the data.
@@ -192,18 +200,18 @@ def _filter_data(
         )
         df = df.sort_values(by=filter_highest_N_variable, ascending=False).iloc[
             filter_highest_N:
-        ] # type: ignore
+        ]  # type: ignore
 
     # allows to only take the first N rows
     if filter_N_samples is not None:
         assert (
             filter_highest_N is None
         ), "only one of 'filter_highest_N' or 'filter_N_samples' is allowed"
-        df = df.iloc[:filter_N_samples] if filter_N_samples is not None else df # type: ignore
+        df = df.iloc[:filter_N_samples] if filter_N_samples is not None else df  # type: ignore
     ## allow to only keep certain idxs
     if keep_idxs is not None:
         original_len = len(df)
-        df = df.loc[keep_idxs] # type: ignore
+        df = df.loc[keep_idxs]  # type: ignore
         print(f"Keeping only {len(df)} rows (of {original_len})")
 
     return df
@@ -219,28 +227,30 @@ def get_results(file: Path, key: str = "-AFpeak") -> np.ndarray:
 def create_samples_along_axes(
     run_dir: Path,
     data: pd.DataFrame,
-    input_vars: List[str],
+    input_vars: list[str],
     NSAMPLESPERVAR: int,
-    cut_values: Optional[Dict[str, float]] = None,
+    cut_values: dict[str, float] | None = None,
     sweep_file_name: str = "sweep_input",
 ) -> Path:
     # create sweeps data
     if not sweep_file_name.endswith(".csv"):
         sweep_file_name += ".csv"
     SWEEP_INPUT_FILE = run_dir / sweep_file_name
-    
+
     data = sanitize_varnames_df(data)
     input_vars = sanitize_varnames(input_vars)
 
     assert np.all(
         [var in data.columns for var in input_vars]
     ), "Input variables not found in data"
-    data = data[input_vars] # type: ignore
+    data = data[input_vars]  # type: ignore
     assert len(data.columns) == len(
         input_vars
     ), "Data columns do not match input variables"
     mins, maxs = data.min().values, data.max().values
-    cut_value_list = [cut_values[var] for var in input_vars] if cut_values else data.mean().values
+    cut_value_list = (
+        [cut_values[var] for var in input_vars] if cut_values else data.mean().values
+    )
 
     sample_list = []
     for i, var in enumerate(input_vars):
@@ -258,8 +268,11 @@ def create_samples_along_axes(
 
 
 def extract_predictions_along_axes(
-    run_dir: Path, RESPONSE: str, input_vars: List[str], NSAMPLESPERVAR: int,
-) -> Dict[str, Dict[str, np.ndarray]]:
+    run_dir: Path,
+    RESPONSE: str,
+    input_vars: list[str],
+    NSAMPLESPERVAR: int,
+) -> dict[str, dict[str, np.ndarray]]:
     """
     To retrieve results generated with 'create_samples_along_axes'
     For a RESPONSE output variable, return a dictionary with input variables as keys.
@@ -282,20 +295,25 @@ def extract_predictions_along_axes(
         }
         if (run_dir / "variances.dat").is_file():
             results[variable].update(
-                {"std_hat": list(std_hat[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR])}
+                {
+                    "std_hat": list(
+                        std_hat[i * NSAMPLESPERVAR : (i + 1) * NSAMPLESPERVAR]
+                    )
+                }
             )
 
     return results
 
+
 def create_grid_samples(
     run_dir: Path,
-    grid_vars: List[str],
-    input_vars: List[str],
-    mins: List[float],
-    cut_values: List[float],
-    maxs: List[float],
-    n_points_per_dimension: List[int],
-    downscaling_factor: Optional[float] = None,
+    grid_vars: list[str],
+    input_vars: list[str],
+    mins: list[float],
+    cut_values: list[float],
+    maxs: list[float],
+    n_points_per_dimension: list[int],
+    downscaling_factor: float | None = None,
     gridpoints_file_name: str = "grid_input.csv",
 ) -> Path:
     """Generate grid points (either for sampling, or to evaluate the SuMo upon and display)"""
@@ -310,31 +328,33 @@ def create_grid_samples(
         raise ValueError("Number of variables must match number of maxs.")
     if len(input_vars) < 1:
         raise ValueError("At least one variable is required to generate a grid.")
-    
+
     if downscaling_factor is not None:
         n_points_per_dimension = [
             int(np.ceil(n / downscaling_factor)) for n in n_points_per_dimension
         ]
-    
+
     input_vars = sanitize_varnames(input_vars)
     grid_vars = sanitize_varnames(grid_vars)
-    
+
     print("Parameters to create grid: ")
     print(mins, maxs, n_points_per_dimension)
     print("Grid vars: ", grid_vars)
     print("input vars: ", input_vars)
-    
+
     grid = np.meshgrid(
         *[
-            np.linspace(mins[i], maxs[i], n_points_per_dimension[i])
-            if input_vars[i] in grid_vars
-            else cut_values[i]
+            (
+                np.linspace(mins[i], maxs[i], n_points_per_dimension[i])
+                if input_vars[i] in grid_vars
+                else cut_values[i]
+            )
             for i in range(len(input_vars))
         ]
     )
     gridpoints = np.vstack([a.ravel() for a in grid]).T
     gridpoints = pd.DataFrame(gridpoints, columns=input_vars)
-    
+
     gridpoints.to_csv(GRIDPOINTS_INPUT_FILE, index=False)
     PROCESSED_GRIDPOINTS_INPUT_FILE = Path(process_input_file(GRIDPOINTS_INPUT_FILE))
 
@@ -342,8 +362,8 @@ def create_grid_samples(
 
 
 def extract_predictions_gridpoints(
-    run_dir: Path, RESPONSE: str, input_vars: List[str], NSAMPLESPERVAR: int
-) -> Dict[str, List[float]]:
+    run_dir: Path, RESPONSE: str, input_vars: list[str], NSAMPLESPERVAR: int
+) -> dict[str, list[float]]:
     """
     To retrieve results generated with 'create_samples_along_axes'
     For a RESPONSE output variable, return a dictionary with input variables as keys.
@@ -353,7 +373,7 @@ def extract_predictions_gridpoints(
     predictions_df = load_data(run_dir / "predictions.dat")
     input_vars = sanitize_varnames(input_vars)
     RESPONSE = sanitize_varnames(RESPONSE)
-    
+
     y_hat = get_results(run_dir / "predictions.dat", RESPONSE)
 
     results = {var: predictions_df[var].astype(float).tolist() for var in input_vars}
@@ -362,19 +382,28 @@ def extract_predictions_gridpoints(
         std_hat = np.sqrt(
             get_results(run_dir / "variances.dat", RESPONSE + "_variance")
         )
-        results[RESPONSE + "_std"] = std_hat.astype(float).tolist() # type: ignore
+        results[RESPONSE + "_std"] = std_hat.astype(float).tolist()  # type: ignore
 
-    return results # type: ignore
+    return results  # type: ignore
 
-def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dict[str, float]], num_samples: int, seed: Optional[int] = None):
+
+def create_manual_uq_samples(
+    input_vars: list[str],
+    distributions: dict[str, dict[str, float]],
+    num_samples: int,
+    seed: int | None = None,
+):
     """
     Generate samples for manual UQ propagation based on user-specified distributions.
     Returns a list of dictionaries, each representing a sample.
     """
     input_vars = sanitize_varnames(input_vars)
-    distributions = {sanitize_varname(k): sanitize_varnames_dict(v) for k, v in distributions.items()}
-    
-    from scipy.stats import norm, uniform # type: ignore
+    distributions = {
+        sanitize_varname(k): sanitize_varnames_dict(v) for k, v in distributions.items()
+    }
+
+    from scipy.stats import norm, uniform  # type: ignore
+
     np.random.default_rng(seed=seed)
     samples = {}
     for var in input_vars:
@@ -387,7 +416,7 @@ def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dic
         elif dist_type == "uniform":
             min_val = dist_info["min"]
             max_val = dist_info["max"]
-            samples[var] = uniform.rvs(size=num_samples, loc=min_val, scale=max_val-min_val).tolist()  # type: ignore
+            samples[var] = uniform.rvs(size=num_samples, loc=min_val, scale=max_val - min_val).tolist()  # type: ignore
         elif dist_type == "constant":
             value = dist_info["value"]
             samples[var] = [float(value)] * num_samples
@@ -400,19 +429,24 @@ def create_manual_uq_samples(input_vars: List[str], distributions: Dict[str, Dic
     return samples
 
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 @overload
 def sanitize_varnames(input_data: str) -> str: ...
 
-@overload
-def sanitize_varnames(input_data: List[str]) -> List[str]: ...
 
 @overload
-def sanitize_varnames(input_data: Dict[str, T]) -> Dict[str, T]: ...
+def sanitize_varnames(input_data: list[str]) -> list[str]: ...
+
+
+@overload
+def sanitize_varnames(input_data: dict[str, T]) -> dict[str, T]: ...
+
 
 @overload
 def sanitize_varnames(input_data: pd.DataFrame) -> pd.DataFrame: ...
+
 
 def sanitize_varnames(input_data):
     """
@@ -422,23 +456,26 @@ def sanitize_varnames(input_data):
     - list/iterable: sanitizes each item in the list
     - dict: sanitizes the keys of the dictionary
     - pd.DataFrame: sanitizes the column names
-    
+
     Args:
         input_data: The data to sanitize (string, list, dict, or DataFrame)
-        
+
     Returns:
         Sanitized version of the input data (same type as input)
     """
+
     # Helper function for sanitizing a single string
     def _sanitize_single(varname: str) -> str:
         # Replace spaces with underscores and then replace any remaining non-alphanumeric chars (except _*-+/)
-        return re.sub(r'[^0-9a-zA-Z_*-+/]', '_', varname.replace(' ', '_'))
-    
+        return re.sub(r"[^0-9a-zA-Z_*-+/]", "_", varname.replace(" ", "_"))
+
     # Handle different input types
     if isinstance(input_data, str):
         return _sanitize_single(input_data)
     elif isinstance(input_data, pd.DataFrame):
-        df = input_data.copy()  # Create a copy to avoid modifying the original DataFrame
+        df = (
+            input_data.copy()
+        )  # Create a copy to avoid modifying the original DataFrame
         df.columns = [_sanitize_single(col) for col in df.columns]
         return df
     elif isinstance(input_data, dict):
@@ -451,10 +488,11 @@ def sanitize_varnames(input_data):
             else:
                 result[sanitized_key] = v
         return result
-    elif hasattr(input_data, '__iter__') and not isinstance(input_data, (str, bytes)):
+    elif hasattr(input_data, "__iter__") and not isinstance(input_data, (str, bytes)):
         return [_sanitize_single(v) for v in input_data]
     else:
         raise TypeError(f"Unsupported input type: {type(input_data)}")
+
 
 # Aliases for backward compatibility
 sanitize_varname = sanitize_varnames  # For single string input
@@ -468,12 +506,14 @@ def is_dominated(point: np.ndarray, other_points: np.ndarray):
 
 def get_non_dominated_indices(
     data: pd.DataFrame,
-    optimized_vars: List[str],
-    optimization_modes: Optional[List[Literal["min", "max"]]] = None,
-    sort_by_column: Optional[str] = None,
-) -> List[int]:
-    data = data[optimized_vars].copy() # type: ignore
-    data = data.apply(pd.to_numeric, errors='coerce') ## bfr they were "np.object_" and was giving weird comparison results
+    optimized_vars: list[str],
+    optimization_modes: list[Literal["min", "max"]] | None = None,
+    sort_by_column: str | None = None,
+) -> list[int]:
+    data = data[optimized_vars].copy()  # type: ignore
+    data = data.apply(
+        pd.to_numeric, errors="coerce"
+    )  ## bfr they were "np.object_" and was giving weird comparison results
 
     ## extract to separate function; unify with interface of MinimizationModel
     if optimization_modes:
@@ -498,14 +538,16 @@ def get_non_dominated_indices(
 
     if sort_by_column:
         sorted_indices = (
-            data.loc[non_dominated_indices].sort_values(by=sort_by_column).index.values # type: ignore
+            data.loc[non_dominated_indices].sort_values(by=sort_by_column).index.values  # type: ignore
         )
         return list(sorted_indices)
     else:
         return non_dominated_indices
 
 
-def get_bounds_uniform_distributions(input_vars: List[str], distributions: Dict[str, Dict[str, float]]) -> Tuple[List[float], List[float]]:
+def get_bounds_uniform_distributions(
+    input_vars: list[str], distributions: dict[str, dict[str, float]]
+) -> tuple[list[float], list[float]]:
     lower_bounds = []
     upper_bounds = []
     for var in input_vars:
@@ -518,12 +560,14 @@ def get_bounds_uniform_distributions(input_vars: List[str], distributions: Dict[
     return lower_bounds, upper_bounds
 
 
-def get_bounds_uniform_distribution(var: str, dist: Dict[str, float]) -> Tuple[float, float]:
+def get_bounds_uniform_distribution(
+    var: str, dist: dict[str, float]
+) -> tuple[float, float]:
     """
     Extracts the lower and upper bounds from a uniform distribution specification.
     Parameters:
         var (str): The name of the variable for which the bounds are being retrieved.
-        dist (Dict[str, float]): A dictionary specifying the distribution parameters. 
+        dist (Dict[str, float]): A dictionary specifying the distribution parameters.
             Must contain the key "distribution" with value "uniform", and keys "min" and "max" for the bounds.
     Returns:
         Tuple[float, float]: A tuple containing the minimum and maximum bounds of the uniform distribution.
@@ -531,10 +575,12 @@ def get_bounds_uniform_distribution(var: str, dist: Dict[str, float]) -> Tuple[f
         ValueError: If the distribution is not uniform, if the bounds are not defined, or if min >= max.
     """
     if dist["distribution"] != "uniform":
-        raise ValueError(f"Non-uniform distribution for variable '{var}' is not supported.")
+        raise ValueError(
+            f"Non-uniform distribution for variable '{var}' is not supported."
+        )
     if "min" not in dist or "max" not in dist:
         raise ValueError(f"Bounds for variable '{var}' are not defined.")
     if dist["min"] >= dist["max"]:
         raise ValueError(f"Invalid bounds for variable '{var}': min >= max.")
-    
+
     return dist["min"], dist["max"]

@@ -1,6 +1,114 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]   # PEP 508 specifications.
+requires = ["uv_build>=0.8.17,<0.9.0"]
+build-backend = "uv_build"
 
+[project]
+name = "mmux_python"
+version = "1.5.14"
+requires-python = ">=3.11"
+authors = [
+    { name = "Javier Garcia Ordonez", email = "ordonez@zmt.swiss" },
+]
 
-[tool.poetry.scripts]
-pycln = "pycln.cli:app"
+dependencies = [
+    "python-dotenv==1.1.0",
+    "GitPython==3.1.44",
+    "ipykernel==6.29.5",
+    "tqdm==4.67.1",
+    "numpy==2.2.6",
+    "pandas==2.2.3",
+    "scipy==1.15.3",
+    "matplotlib==3.10.3",
+    "seaborn==0.13.2",
+    "itis-dakota==1.5.9",
+    "Flask==3.1.1",
+    "flask-cors==6.0.0",
+    "scikit-learn==1.6.1",
+    "httpx==0.18.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0.0",
+    "pre-commit>=3.0.0",
+    "ruff>=0.7.0",
+    "twine>=4.0.0",
+    "pycln>=2.5.0",
+    "pyupgrade>=3.0.0",
+    "mdformat>=0.7.0",
+    "mdformat-gfm>=0.3.0",
+    "mdformat-frontmatter>=2.0.0",
+    "nbqa>=1.8.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-profiling>=1.7.0",
+]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ITISFoundation/mmux_vite"
+Repository = "https://github.com/ITISFoundation/mmux_vite"
+Issues = "https://github.com/ITISFoundation/mmux_vite/issues"
+Documentation = "https://github.com/ITISFoundation/mmux_vite/blob/main/README.md"
+
+[project.scripts]
+# Add any CLI scripts here if needed
+
+# Tool configurations
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", # flake8-use-pathlib
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "W191",  # indentation contains tabs
+]
+unfixable = [
+    "F841",  # Remove unused variables
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.1",
+]

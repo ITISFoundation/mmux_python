@@ -9,8 +9,18 @@ TODO**
 __pycache__/
 *.py[cod]
 *$py.class
-.pyenv
 
+# Virtual environments (legacy and modern)
+.pyenv/
+.venv/
+venv/
+env/
+
+# uv
+.uv_cache/
+
+# Ruff
+.ruff_cache/
 
 # C extensions
 *.so

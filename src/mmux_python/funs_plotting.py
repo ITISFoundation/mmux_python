@@ -241,7 +241,7 @@ def plot_uq_histogram(
     # NB this should remove "log" in any case
 ):
     x, xlabel = _process_x_axis_scaling(
-        {"x": x}, output_response, plotting_xscale, label_converter
+        output_response, {"x": x}, plotting_xscale, label_converter
     )
     if ax is None:
         fig, ax = plt.subplots()

@@ -487,7 +487,7 @@ def create_sumo_crossvalidation_conffile(
         training_samples_file=str(build_file.resolve()),
         cross_validation_folds=N_CROSS_VALIDATION,
     )
-    from funs_data_processing import process_input_file
+    from .funs_data_processing import process_input_file
 
     JUST_INPUTS_FILE = process_input_file(
         build_file,
@@ -516,7 +516,7 @@ def create_sumo_manual_crossvalidation_conffile(
     validation_indices: list[int],
     dakota_conf_file: str | Path | None = None,
 ):
-    from funs_data_processing import load_data, process_input_file
+    from .funs_data_processing import load_data, process_input_file
 
     dakota_conf = start_dakota_file()
     n_samples = len(load_data(build_file))

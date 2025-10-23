@@ -42,8 +42,8 @@ def lhs(
     iter : int
         The number of iterations in the maximin and correlations algorithms
         (Default: 5).
-    seed : np.random.RandomState, int
-         The seed and random draws
+    seed : int
+         Seed (int) used to create the random generator.
     corr_matrix : ndarray
          Enforce correlation between factors (only used in lhsmu)
     Returns
@@ -52,12 +52,11 @@ def lhs(
         An n-by-k design matrix that has been normalized so factor values
         are uniformly spaced between zero and one.
     """
-    H = None
 
     if seed is None:
-        seed = np.random.RandomState()
-    elif not isinstance(seed, np.random.RandomState):
-        seed = np.random.RandomState(seed)
+        random_generator = np.random.RandomState()
+    elif isinstance(seed, int):
+        random_generator = np.random.RandomState(seed)
 
     if method is not None:
         if method.lower() not in (
@@ -73,29 +72,29 @@ def lhs(
         ):
             raise ValueError(f'Invalid value for "method": {method}')
     else:
-        H = _lhsclassic(n, k, seed)
+        return _lhsclassic(n, k, random_generator)
 
     if method is None:
         method = "center"
     if iter is None:
         iter = 5
 
-    if H is None:
-        if method.lower() in ("center", "c"):
-            H = _lhscentered(n, k, seed)
-        elif method.lower() in ("maximin", "m"):
-            H = _lhsmaximin(n, k, iter, "maximin", seed)
-        elif method.lower() in ("centermaximin", "cm"):
-            H = _lhsmaximin(n, k, iter, "centermaximin", seed)
-        elif method.lower() in ("correlation", "corr"):
-            H = _lhscorrelate(n, k, iter, seed)
-        elif method.lower() in ("lhsmu"):
-            H = _lhsmu(n, k, corr_matrix, seed)
+    if method.lower() in ("center", "c"):
+        H = _lhscentered(n, k, random_generator)
+    elif method.lower() in ("maximin", "m"):
+        H = _lhsmaximin(n, k, iter, "maximin", random_generator)
+    elif method.lower() in ("centermaximin", "cm"):
+        H = _lhsmaximin(n, k, iter, "centermaximin", random_generator)
+    elif method.lower() in ("correlation", "corr"):
+        H = _lhscorrelate(n, k, iter, random_generator)
+    elif method.lower() in ("lhsmu"):
+        assert corr_matrix is not None, "corr_matrix must be provided for method lhsmu"
+        H = _lhsmu(n, k, corr_matrix, random_generator)
 
     return H
 
 
-def _lhsclassic(n, k, randomstate):
+def _lhsclassic(n: int, k: int, randomstate: np.random.RandomState) -> np.ndarray:
     # generate the intervals
     cut = np.linspace(0, 1, k + 1)
 
@@ -116,7 +115,7 @@ def _lhsclassic(n, k, randomstate):
     return H
 
 
-def _lhscentered(n, k, randomstate):
+def _lhscentered(n: int, k: int, randomstate: np.random.RandomState) -> np.ndarray:
     # generate the intervals
     cut = np.linspace(0, 1, k + 1)
 
@@ -134,7 +133,9 @@ def _lhscentered(n, k, randomstate):
     return H
 
 
-def _lhsmaximin(n, k, iter, lhstype, randomstate):
+def _lhsmaximin(
+    n: int, k: int, iter: int, lhstype: str, randomstate: np.random.RandomState
+) -> np.ndarray:
     maxdist = 0
 
     # maximize the minimum distance between points
@@ -152,7 +153,9 @@ def _lhsmaximin(n, k, iter, lhstype, randomstate):
     return H
 
 
-def _lhscorrelate(n, k, iter, randomstate):
+def _lhscorrelate(
+    n: int, k: int, iter: int, randomstate: np.random.RandomState
+) -> np.ndarray:
     mincorr = np.inf
 
     # minimize the components correlation coefficients
@@ -167,16 +170,13 @@ def _lhscorrelate(n, k, iter, randomstate):
     return H
 
 
-def _lhsmu(n, k, corr=None, seed=None):
-
-    if seed is None:
-        seed = np.random.RandomState()
-    elif not isinstance(seed, np.random.RandomState):
-        seed = np.random.RandomState(seed)
+def _lhsmu(
+    n: int, k: int, corr: np.ndarray, random_generator: np.random.RandomState
+) -> np.ndarray:
 
     I = 5 * k
 
-    rdpoints = seed.uniform(size=(I, n))
+    rdpoints = random_generator.uniform(size=(I, n))
 
     dist = spatial.distance.cdist(rdpoints, rdpoints, metric="euclidean")
     D_ij = ma.masked_array(dist, mask=np.identity(I))
@@ -219,5 +219,5 @@ def _lhsmu(n, k, corr=None, seed=None):
             high = float(l + 1) / k
 
             l_pos = rank == l
-            H[l_pos] = seed.uniform(low, high, size=n)
+            H[l_pos] = random_generator.uniform(low, high, size=n)
     return H
